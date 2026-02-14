@@ -6,8 +6,422 @@ import urllib.request
 import urllib.error
 import json
 import io
+import tkinter as tk
+from tkinter import ttk, scrolledtext, messagebox, filedialog
+import threading
+from datetime import datetime
+import webbrowser
+try:
+    from tkinterweb import HtmlFrame
+except ImportError:
+    HtmlFrame = None
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+
+class OTAProberGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("OTA Prober")
+        self.root.geometry("1000x700")
+        self.root.configure(bg='#f0f0f0')
+        
+        self.setup_styles()
+        self.create_widgets()
+        self.query_thread = None
+    
+    def setup_styles(self):
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        style.configure('Header.TLabel', font=('Arial', 12, 'bold'), background='#f0f0f0')
+        style.configure('Normal.TLabel', font=('Arial', 10), background='#f0f0f0')
+        style.configure('Title.TLabel', font=('Arial', 14, 'bold'), background='#f0f0f0')
+    
+    def create_widgets(self):
+        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        title = ttk.Label(main_frame, text="Android OTA Prober", style='Title.TLabel')
+        title.grid(row=0, column=0, columnspan=3, pady=(0, 20), sticky=tk.W)
+        
+        input_frame = ttk.LabelFrame(main_frame, text="Device Fingerprint", padding="10")
+        input_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        
+        ttk.Label(input_frame, text="Enter fingerprint:", style='Normal.TLabel').grid(row=0, column=0, sticky=tk.W, pady=5)
+        
+        self.fingerprint_var = tk.StringVar()
+        self.fingerprint_entry = ttk.Entry(input_frame, textvariable=self.fingerprint_var, width=70, font=('Courier', 10))
+        self.fingerprint_entry.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
+        self.fingerprint_entry.insert(0, "google/shamu/shamu:5.1/LYZ28E/1858530:user/release-keys")
+        
+        ttk.Label(input_frame, text="Format: oem/product/device:api/build_tag/incremental:build_type/key_type", 
+                  style='Normal.TLabel', foreground='#666666').grid(row=2, column=0, sticky=tk.W)
+        
+        input_frame.columnconfigure(0, weight=1)
+        
+        options_frame = ttk.LabelFrame(main_frame, text="Options", padding="10")
+        options_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        
+        self.json_var = tk.BooleanVar(value=False)
+        self.json_check = ttk.Checkbutton(options_frame, text="Output as JSON", variable=self.json_var)
+        self.json_check.grid(row=0, column=0, sticky=tk.W, padx=5)
+        
+        self.save_var = tk.BooleanVar(value=False)
+        self.save_check = ttk.Checkbutton(options_frame, text="Save to file", variable=self.save_var)
+        self.save_check.grid(row=0, column=1, sticky=tk.W, padx=5)
+        
+        button_frame = ttk.Frame(main_frame)
+        button_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        
+        self.query_button = ttk.Button(button_frame, text="Query Device", command=self.on_query_click)
+        self.query_button.pack(side=tk.LEFT, padx=5)
+        
+        self.clear_button = ttk.Button(button_frame, text="Clear Output", command=self.on_clear_click)
+        self.clear_button.pack(side=tk.LEFT, padx=5)
+        
+        self.copy_button = ttk.Button(button_frame, text="Copy to Clipboard", command=self.on_copy_click)
+        self.copy_button.pack(side=tk.LEFT, padx=5)
+        
+        self.status_var = tk.StringVar(value="Ready")
+        self.status_label = ttk.Label(main_frame, textvariable=self.status_var, foreground='#0066cc', style='Normal.TLabel')
+        self.status_label.grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=(0, 10))
+        
+        output_frame = ttk.LabelFrame(main_frame, text="Results", padding="10")
+        output_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
+        
+        header_frame = ttk.Frame(output_frame)
+        header_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.status_icon_var = tk.StringVar(value="")
+        self.status_icon_label = ttk.Label(header_frame, textvariable=self.status_icon_var, font=('Arial', 16))
+        self.status_icon_label.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.ota_link_label = ttk.Label(header_frame, text="", font=('Courier', 10))
+        self.ota_link_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.ota_link_label.bind('<Button-1>', self.on_header_link_click)
+        
+        self.notebook = ttk.Notebook(output_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        self.desc_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.desc_frame, text="Description")
+        
+        if HtmlFrame:
+            self.html_frame = HtmlFrame(self.desc_frame)
+            self.html_frame.pack(fill=tk.BOTH, expand=True)
+            self.desc_text = None
+        else:
+            self.desc_text = scrolledtext.ScrolledText(
+                self.desc_frame,
+                wrap=tk.WORD,
+                width=120,
+                height=20,
+                font=('Arial', 10),
+                bg='white',
+                fg='#333333'
+            )
+            self.desc_text.pack(fill=tk.BOTH, expand=True)
+            self.html_frame = None
+        
+        self.log_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.log_frame, text="Full Log")
+        
+        self.output_text = scrolledtext.ScrolledText(
+            self.log_frame,
+            wrap=tk.WORD,
+            width=120,
+            height=20,
+            font=('Courier', 9),
+            bg='white',
+            fg='#333333'
+        )
+        self.output_text.pack(fill=tk.BOTH, expand=True)
+        
+        self.output_text.tag_configure('header', foreground='#0066cc', font=('Courier', 10, 'bold'))
+        self.output_text.tag_configure('success', foreground='#006600', font=('Courier', 9, 'bold'))
+        self.output_text.tag_configure('error', foreground='#cc0000', font=('Courier', 9, 'bold'))
+        self.output_text.tag_configure('info', foreground='#666666', font=('Courier', 9))
+        self.output_text.tag_configure('link', foreground='#0066cc', font=('Courier', 9, 'underline'))
+        self.output_text.tag_configure('section', foreground='#004499', font=('Courier', 10, 'bold'))
+        
+        self.output_text.tag_bind('link', '<Button-1>', self.on_link_click)
+        self.output_text.tag_bind('link', '<Enter>', lambda e: self.output_text.config(cursor='hand2'))
+        self.output_text.tag_bind('link', '<Leave>', lambda e: self.output_text.config(cursor='xterm'))
+        
+        self.url_map = {}
+        self.current_ota_link = None
+        
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(5, weight=1)
+    
+    def update_status(self, message, status_type='info'):
+        self.status_var.set(message)
+        if status_type == 'error':
+            self.status_label.configure(foreground='#cc0000')
+        elif status_type == 'success':
+            self.status_label.configure(foreground='#006600')
+        else:
+            self.status_label.configure(foreground='#0066cc')
+        self.root.update()
+    
+    def log_output(self, text, tag='info'):
+        self.output_text.insert(tk.END, text + '\n', tag)
+        self.output_text.see(tk.END)
+        self.root.update()
+    
+    def log_link(self, display_text, url):
+        link_id = f"link_{len(self.url_map)}"
+        self.url_map[link_id] = url
+        self.output_text.insert(tk.END, display_text, (link_id, 'link'))
+        self.output_text.see(tk.END)
+        self.root.update()
+    
+    def on_link_click(self, event):
+        try:
+            index = self.output_text.index(f"@{event.x},{event.y}")
+            tags = self.output_text.tag_names(index)
+            for tag in tags:
+                if tag in self.url_map:
+                    url = self.url_map[tag]
+                    webbrowser.open(url)
+                    return
+        except:
+            pass
+    
+    def on_header_link_click(self, event):
+        if self.current_ota_link:
+            webbrowser.open(self.current_ota_link)
+    
+    def on_clear_click(self):
+        self.output_text.delete(1.0, tk.END)
+        if self.html_frame:
+            self.html_frame.load_html("")
+        elif self.desc_text:
+            self.desc_text.delete(1.0, tk.END)
+        self.status_icon_var.set("")
+        self.ota_link_label.config(text="")
+        self.current_ota_link = None
+        self.update_status("Output cleared")
+    
+    def on_copy_click(self):
+        try:
+            content = self.output_text.get(1.0, tk.END)
+            self.root.clipboard_clear()
+            self.root.clipboard_append(content)
+            self.update_status("Copied to clipboard", 'success')
+        except Exception as e:
+            self.update_status(f"Failed to copy: {e}", 'error')
+    
+    def on_query_click(self):
+        fingerprint = self.fingerprint_var.get().strip()
+        
+        if not fingerprint:
+            messagebox.showerror("Error", "Please enter a fingerprint")
+            return
+        
+        if '/' not in fingerprint:
+            messagebox.showerror("Error", "Invalid fingerprint format")
+            return
+        
+        self.query_button.config(state=tk.DISABLED)
+        self.clear_button.config(state=tk.DISABLED)
+        self.fingerprint_entry.config(state=tk.DISABLED)
+        
+        self.query_thread = threading.Thread(target=self.perform_query, args=(fingerprint,), daemon=True)
+        self.query_thread.start()
+    
+    def perform_query(self, fingerprint):
+        try:
+            self.output_text.delete(1.0, tk.END)
+            if self.html_frame:
+                self.html_frame.load_html("")
+            elif self.desc_text:
+                self.desc_text.delete(1.0, tk.END)
+            self.url_map.clear()
+            self.current_ota_link = None
+            self.update_status("Parsing fingerprint...")
+            
+            parsed = parse_fingerprint(fingerprint)
+            self.update_status("Sending check-in request...")
+            
+            settings = perform_checkin(fingerprint)
+            
+            if not settings:
+                self.log_output("ERROR: Check-in failed - No response from server", 'error')
+                self.status_icon_var.set("❌")
+                self.update_status("Query failed", 'error')
+            else:
+                build_info = extract_build_details(fingerprint, settings)
+                ota_link = find_ota_link(settings)
+                
+                if self.json_var.get():
+                    json_data = {
+                        'fingerprint': fingerprint,
+                        'build_info': build_info,
+                        'ota_link': ota_link,
+                        'total_settings': len(settings),
+                    }
+                    output_str = json.dumps(json_data, indent=2)
+                    self.log_output(output_str)
+                    if self.html_frame:
+                        html_content = f"<pre>{output_str}</pre>"
+                        self.html_frame.load_html(html_content)
+                    elif self.desc_text:
+                        self.desc_text.insert(tk.END, output_str)
+                else:
+                    self.format_and_log_output(fingerprint, settings, build_info, ota_link)
+                
+                if self.save_var.get():
+                    if self.json_var.get():
+                        output_str = json.dumps({
+                            'fingerprint': fingerprint,
+                            'build_info': build_info,
+                            'ota_link': ota_link,
+                            'total_settings': len(settings),
+                        }, indent=2)
+                    else:
+                        output_str = self.output_text.get(1.0, tk.END)
+                    self.save_output(output_str, fingerprint)
+                
+                self.update_status("Query completed successfully", 'success')
+        
+        except ValueError as e:
+            self.log_output(f"ERROR: {e}", 'error')
+            self.status_icon_var.set("❌")
+            self.update_status("Invalid fingerprint format", 'error')
+        except Exception as e:
+            self.log_output(f"ERROR: {e}", 'error')
+            self.status_icon_var.set("❌")
+            self.update_status(f"Error: {e}", 'error')
+        finally:
+            self.query_button.config(state=tk.NORMAL)
+            self.clear_button.config(state=tk.NORMAL)
+            self.fingerprint_entry.config(state=tk.NORMAL)
+    
+    def save_output(self, content, fingerprint):
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_name = f"ota_report_{timestamp}.txt"
+            
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                initialfile=default_name,
+                filetypes=[("Text files", "*.txt"), ("JSON files", "*.json"), ("All files", "*.*")]
+            )
+            
+            if file_path:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                self.update_status(f"Saved to {file_path}", 'success')
+        except Exception as e:
+            self.update_status(f"Save failed: {e}", 'error')
+    
+    def format_and_log_output(self, fingerprint, settings, build_info, ota_link):
+        self.log_output("=" * 75, 'header')
+        self.log_output("DEVICE & BUILD INFORMATION", 'header')
+        self.log_output("=" * 75, 'header')
+        
+        self.log_output("\n[INPUT]", 'section')
+        self.log_output(f"  Device Codename:   {build_info['device_codename']}", 'info')
+        self.log_output(f"  Android Version:   {build_info['android_version']}", 'info')
+        self.log_output(f"  Build Tag:         {build_info['build_tag']}", 'info')
+        self.log_output(f"  Build Number:      {build_info['build_number']}", 'info')
+        self.log_output(f"  Build Flavor:      {build_info['build_flavor']}", 'info')
+        self.log_output(f"  Security Keys:     {build_info['security_keys']}", 'info')
+        
+        self.log_output("\n[SERVER RESPONSE]", 'section')
+        self.log_output(f"  Total Settings:    {len(settings)}", 'info')
+        self.log_output(f"  Android ID:        {build_info['android_id']}", 'info')
+        self.log_output(f"  Device Country:    {build_info['device_country']}", 'info')
+        
+        self.log_output("\n[OTA UPDATE]", 'section')
+        if ota_link:
+            self.status_icon_var.set("✓")
+            self.status_icon_label.config(foreground='#006600')
+            
+            self.output_text.insert(tk.END, f"  Status:            ", 'info')
+            self.output_text.insert(tk.END, "[OK] Update Available\n", 'success')
+            
+            self.log_output(f"\n  Target URL:", 'info')
+            self.output_text.insert(tk.END, "    ", 'info')
+            self.log_link(ota_link['url'], ota_link['url'])
+            self.output_text.insert(tk.END, '\n', 'info')
+            
+            self.current_ota_link = ota_link['url']
+            header_text = f"🔗 {ota_link['url']}"
+            self.ota_link_label.config(text=header_text, foreground='#0066cc')
+            
+            if ota_link['description']:
+                desc = ota_link['description']
+                
+                if self.html_frame:
+                    html_content = f"""
+                    <html>
+                    <head>
+                        <style>
+                            body {{ font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }}
+                            strong {{ color: #333; }}
+                            a {{ color: #0066cc; text-decoration: none; }}
+                            a:hover {{ text-decoration: underline; }}
+                            p {{ margin: 10px 0; }}
+                            br {{ margin: 5px 0; }}
+                        </style>
+                    </head>
+                    <body>
+                    {desc}
+                    </body>
+                    </html>
+                    """
+                    self.html_frame.load_html(html_content)
+                elif self.desc_text:
+                    self.desc_text.insert(tk.END, desc)
+                
+                self.log_output(f"\n  Description:", 'info')
+                desc_plain = desc.replace('<br>', '\n').replace('<p>', '').replace('</p>', '').replace('<strong>', '').replace('</strong>', '').replace('<a href="', '').replace('">', '').replace('</a>', '')
+                if len(desc_plain) > 70:
+                    words = desc_plain.split()
+                    lines = []
+                    current_line = []
+                    for word in words:
+                        if len(' '.join(current_line + [word])) <= 70:
+                            current_line.append(word)
+                        else:
+                            if current_line:
+                                lines.append('    ' + ' '.join(current_line))
+                            current_line = [word]
+                    if current_line:
+                        lines.append('    ' + ' '.join(current_line))
+                    for line in lines:
+                        self.log_output(line, 'info')
+                else:
+                    self.log_output(f"    {desc_plain}", 'info')
+            else:
+                if self.html_frame:
+                    self.html_frame.load_html("<p>(No description available)</p>")
+                elif self.desc_text:
+                    self.desc_text.insert(tk.END, "(No description available)")
+            
+            if ota_link['precondition']:
+                self.log_output(f"\n  Precondition:", 'info')
+                self.log_output(f"    {ota_link['precondition']}", 'info')
+            
+            if ota_link['postcondition']:
+                self.log_output(f"\n  Postcondition:", 'info')
+                self.log_output(f"    {ota_link['postcondition']}", 'info')
+        else:
+            self.status_icon_var.set("❌")
+            self.status_icon_label.config(foreground='#cc0000')
+            self.output_text.insert(tk.END, f"  Status:            ", 'info')
+            self.output_text.insert(tk.END, "[NONE] No Update Available\n", 'error')
+            if self.html_frame:
+                self.html_frame.load_html("<p>No OTA update available for this device.</p>")
+            elif self.desc_text:
+                self.desc_text.insert(tk.END, "No OTA update available for this device.")
+        
+        self.log_output("\n" + "=" * 75, 'header')
 
 
 def parse_fingerprint(fingerprint):
@@ -365,85 +779,12 @@ def format_output(fingerprint, settings, build_info, ota_link):
     
     return "\n".join(output)
 
+
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python probe.py <fingerprint> [OPTIONS]")
-        print("\nOptions:")
-        print("  --json         Output as JSON")
-        print("  --save <file>  Save output to file")
-        print("\nExample:")
-        print("  python probe.py 'google/shamu/shamu:5.1/LYZ28E/1858530:user/release-keys'")
-        sys.exit(1)
-    
-    fingerprints = []
-    json_output = '--json' in sys.argv
-    save_file = None
-    
-    if '--save' in sys.argv:
-        idx = sys.argv.index('--save')
-        if idx + 1 < len(sys.argv):
-            save_file = sys.argv[idx + 1]
-    
-    for arg in sys.argv[1:]:
-        if not arg.startswith('--') and '/' in arg:
-            fingerprints.append(arg)
-            break
-    
-    if not fingerprints:
-        print("Error: No fingerprint provided")
-        sys.exit(1)
-    
-    responses = {}
-    build_infos = {}
-    ota_links = {}
-    
-    fingerprint = fingerprints[0]
-    print(f"Querying: {fingerprint}")
-    
-    try:
-        parse_fingerprint(fingerprint)
-    except ValueError as e:
-        print(f"Error: Invalid fingerprint format\n{e}")
-        sys.exit(1)
-    
-    settings = perform_checkin(fingerprint)
-    
-    if not settings:
-        print("Error: Checkin failed")
-        sys.exit(1)
-    
-    responses[fingerprint] = settings
-    build_infos[fingerprint] = extract_build_details(fingerprint, settings)
-    ota_links[fingerprint] = find_ota_link(settings)
-    print(f"Received {get_service_summary(settings)} settings\n")
-    
-    output = format_output(
-        fingerprints[0],
-        responses[fingerprints[0]],
-        build_infos[fingerprints[0]],
-        ota_links[fingerprints[0]]
-    )
-    
-    if json_output:
-        json_data = {
-            'fingerprint': fingerprints[0],
-            'build_info': build_infos[fingerprints[0]],
-            'ota_link': ota_links[fingerprints[0]],
-            'total_settings': get_service_summary(responses[fingerprints[0]]),
-        }
-        output_str = json.dumps(json_data, indent=2)
-    else:
-        output_str = output
-    
-    try:
-        print("\n" + output_str)
-    except Exception:
-        pass
-    
-    if save_file:
-        with open(save_file, 'w', encoding='utf-8') as f:
-            f.write(output_str)
-        print(f"\n✓ Output saved to {save_file}")
+    root = tk.Tk()
+    app = OTAProberGUI(root)
+    root.mainloop()
+
 
 if __name__ == '__main__':
     main()
