@@ -722,9 +722,9 @@ def get_service_summary(settings):
 def format_output(fingerprint, settings, build_info, ota_link):
     
     output = []
-    output.append("=" * 75)
+    output.append("=" * 63)
     output.append("DEVICE & BUILD INFORMATION")
-    output.append("=" * 75)
+    output.append("=" * 63)
     
     output.append("\n[INPUT]")
     output.append(f"  Device Codename:   {build_info['device_codename']}")
@@ -775,7 +775,7 @@ def format_output(fingerprint, settings, build_info, ota_link):
     else:
         output.append(f"  Status:            [NONE] No Update Available")
     
-    output.append("\n" + "=" * 75)
+    output.append("\n" + "=" * 63)
     
     return "\n".join(output)
 
