@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 import gzip
+import concurrent.futures
 import urllib.request
 import urllib.error
 import json
@@ -23,7 +25,7 @@ class OTAProberGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("OTA Prober")
-        self.root.geometry("1000x700")
+        self.root.geometry("1000x900")
         self.root.configure(bg='#f0f0f0')
         
         self.setup_styles()
@@ -156,6 +158,280 @@ class OTAProberGUI:
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
         main_frame.rowconfigure(5, weight=1)
+        
+        # --- BRUTEFORCE TAB ---
+        self.brute_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.brute_frame, text="Bruteforce")
+        self._build_bruteforce_tab()
+    
+    def _build_bruteforce_tab(self):
+        """Build the bruteforce search tab UI."""
+
+        wrapper = ttk.Frame(self.brute_frame, padding="8")
+        wrapper.pack(fill=tk.BOTH, expand=True)
+
+        # ── BUTTONS always at top ─────────────────────────────────────────────
+        btn_row = ttk.Frame(wrapper)
+        btn_row.pack(fill=tk.X, pady=(0, 4))
+        self.brute_start_btn    = ttk.Button(btn_row, text="▶  Start Bruteforce", command=self._brute_start)
+        self.brute_continue_btn = ttk.Button(btn_row, text="⏩  Continue",         command=self._brute_continue, state=tk.DISABLED)
+        self.brute_stop_btn     = ttk.Button(btn_row, text="⏹  Stop",             command=self._brute_stop,     state=tk.DISABLED)
+        self.brute_clear_btn    = ttk.Button(btn_row, text="🗑  Clear Log",        command=self._brute_clear)
+        for btn in (self.brute_start_btn, self.brute_continue_btn, self.brute_stop_btn, self.brute_clear_btn):
+            btn.pack(side=tk.LEFT, padx=3)
+        self.brute_status_var = tk.StringVar(value="Idle — fill in settings below, then press Start Bruteforce")
+        ttk.Label(btn_row, textvariable=self.brute_status_var, foreground='#0066cc').pack(side=tk.LEFT, padx=10)
+
+        # ── Progress bar ──────────────────────────────────────────────────────
+        self.brute_progress = ttk.Progressbar(wrapper, mode='determinate')
+        self.brute_progress.pack(fill=tk.X, pady=(0, 6))
+
+        # ── Fingerprint template ──────────────────────────────────────────────
+        fp_lf = ttk.LabelFrame(wrapper, text="Fingerprint Template", padding="6")
+        fp_lf.pack(fill=tk.X, pady=(0, 6))
+        ttk.Label(fp_lf, text="Use {BUILD} and {INC} as placeholders:").pack(anchor=tk.W)
+        self.brute_fp_var = tk.StringVar(value="google/tungsten/phantasm:4.0.4/{BUILD}/{INC}:user/release-keys")
+        ttk.Entry(fp_lf, textvariable=self.brute_fp_var, font=('Courier', 9)).pack(fill=tk.X, pady=3)
+        ttk.Label(fp_lf, text="{BUILD} = build tag   {INC} = incremental number",
+                  foreground='#666666').pack(anchor=tk.W)
+
+        # ── Build tags + incremental side by side ─────────────────────────────
+        mid = ttk.Frame(wrapper)
+        mid.pack(fill=tk.X, pady=(0, 6))
+        mid.columnconfigure(0, weight=3)
+        mid.columnconfigure(1, weight=1)
+
+        bt_lf = ttk.LabelFrame(mid, text="Build Tags  (one per line)", padding="6")
+        bt_lf.grid(row=0, column=0, sticky=tk.NSEW, padx=(0, 6))
+        self.brute_tags_text = tk.Text(bt_lf, height=4, font=('Courier', 9))
+        self.brute_tags_text.pack(fill=tk.BOTH, expand=True)
+        self.brute_tags_text.insert(tk.END, "IAN67H\nIAN66H\nIAN65H\nIAN68H")
+
+        inc_lf = ttk.LabelFrame(mid, text="Incremental Range", padding="6")
+        inc_lf.grid(row=0, column=1, sticky=tk.NSEW)
+        inc_lf.columnconfigure(1, weight=1)
+        self.brute_inc_start_var = tk.StringVar(value="370000")
+        self.brute_inc_end_var   = tk.StringVar(value="400000")
+        self.brute_inc_step_var  = tk.StringVar(value="1000")
+        for row_i, (lbl, var) in enumerate(zip(
+                ["Start:", "End:", "Step:"],
+                [self.brute_inc_start_var, self.brute_inc_end_var, self.brute_inc_step_var])):
+            ttk.Label(inc_lf, text=lbl).grid(row=row_i, column=0, sticky=tk.W, pady=3)
+            ttk.Entry(inc_lf, textvariable=var, width=12).grid(row=row_i, column=1, sticky=tk.EW, padx=(6, 0), pady=3)
+
+        # ── Options ───────────────────────────────────────────────────────────
+        opt_lf = ttk.LabelFrame(wrapper, text="Options", padding="6")
+        opt_lf.pack(fill=tk.X, pady=(0, 6))
+        self.brute_stop_on_find_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(opt_lf, text="Pause on find (press Continue to resume)",
+                        variable=self.brute_stop_on_find_var).pack(side=tk.LEFT, padx=8)
+        self.brute_skip_dupes_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(opt_lf, text="Skip duplicate OTA URLs",
+                        variable=self.brute_skip_dupes_var).pack(side=tk.LEFT, padx=8)
+        ttk.Label(opt_lf, text="Parallel workers:").pack(side=tk.LEFT, padx=(16, 4))
+        self.brute_workers_var = tk.StringVar(value="10")
+        ttk.Spinbox(opt_lf, from_=1, to=50, textvariable=self.brute_workers_var, width=5).pack(side=tk.LEFT)
+
+        # ── Log (fills remaining space) ───────────────────────────────────────
+        log_lf = ttk.LabelFrame(wrapper, text="Bruteforce Log", padding="4")
+        log_lf.pack(fill=tk.BOTH, expand=True)
+        self.brute_log = scrolledtext.ScrolledText(log_lf, wrap=tk.WORD, font=('Courier', 9), bg='white', fg='#333', height=12)
+        self.brute_log.pack(fill=tk.BOTH, expand=True)
+        self.brute_log.tag_configure('found',  foreground='#006600', font=('Courier', 9, 'bold'))
+        self.brute_log.tag_configure('skip',   foreground='#aaaaaa')
+        self.brute_log.tag_configure('error',  foreground='#cc0000')
+        self.brute_log.tag_configure('header', foreground='#004499', font=('Courier', 9, 'bold'))
+        self.brute_log.tag_configure('info',   foreground='#333333')
+
+        self._brute_thread      = None
+        self._brute_pause_event = threading.Event()
+        self._brute_stop_flag   = False
+        self._brute_found_urls  = set()
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _brute_log(self, msg, tag='info'):
+        self.brute_log.insert(tk.END, msg + '\n', tag)
+        self.brute_log.see(tk.END)
+        self.root.update()
+
+    def _brute_clear(self):
+        self.brute_log.delete(1.0, tk.END)
+        self._brute_found_urls.clear()
+        self.brute_progress['value'] = 0
+        self.brute_status_var.set("Idle")
+
+    def _generate_combos(self):
+        raw_tags = self.brute_tags_text.get("1.0", tk.END).strip()
+        build_tags = [t.strip() for t in raw_tags.splitlines() if t.strip()]
+        if not build_tags:
+            return None, "Build Tags list is empty. Enter at least one build tag."
+        try:
+            inc_start = int(self.brute_inc_start_var.get().strip())
+            inc_end   = int(self.brute_inc_end_var.get().strip())
+            inc_step  = int(self.brute_inc_step_var.get().strip())
+            if inc_step <= 0:
+                inc_step = 1
+        except ValueError:
+            return None, "Incremental range values must be integers."
+        incrementals = list(range(inc_start, inc_end + 1, inc_step))
+        combos = [(bt, str(inc)) for bt in build_tags for inc in incrementals]
+        return combos, None
+
+    # ── control ──────────────────────────────────────────────────────────────
+
+    def _brute_start(self):
+        combos, err = self._generate_combos()
+        if err:
+            messagebox.showerror("Bruteforce Error", err)
+            return
+        if not combos:
+            messagebox.showerror("Bruteforce Error", "No combinations generated. Check your ranges.")
+            return
+
+        template = self.brute_fp_var.get().strip()
+        if '{BUILD}' not in template and '{INC}' not in template:
+            messagebox.showwarning("Warning", "Template has neither {BUILD} nor {INC} — every request will be identical.")
+
+        self._brute_stop_flag = False
+        self._brute_pause_event.set()   # start unpaused
+        self._brute_found_urls.clear()
+
+        self.brute_start_btn.config(state=tk.DISABLED)
+        self.brute_stop_btn.config(state=tk.NORMAL)
+        self.brute_continue_btn.config(state=tk.DISABLED)
+        self.brute_progress['maximum'] = len(combos)
+        self.brute_progress['value'] = 0
+
+        self._brute_log(f"Starting bruteforce: {len(combos)} combinations", 'header')
+        self._brute_log(f"Template: {template}", 'header')
+        self._brute_log("=" * 70, 'header')
+
+        self._brute_thread = threading.Thread(
+            target=self._brute_worker,
+            args=(combos, template),
+            daemon=True
+        )
+        self._brute_thread.start()
+
+    def _brute_stop(self):
+        self._brute_stop_flag = True
+        self._brute_pause_event.set()   # unblock if paused
+        self.brute_status_var.set("Stopping...")
+        self.brute_stop_btn.config(state=tk.DISABLED)
+        self.brute_continue_btn.config(state=tk.DISABLED)
+
+    def _brute_continue(self):
+        self._brute_pause_event.set()
+        self.brute_continue_btn.config(state=tk.DISABLED)
+        self.brute_stop_btn.config(state=tk.NORMAL)
+        self.brute_status_var.set("Resuming...")
+
+    # ---- worker ----
+
+    def _brute_worker(self, combos, template):
+        skip_dupes    = self.brute_skip_dupes_var.get()
+        pause_on_find = self.brute_stop_on_find_var.get()
+        try:
+            n_workers = max(1, min(50, int(self.brute_workers_var.get())))
+        except ValueError:
+            n_workers = 10
+
+        found_count = 0
+        done_count  = 0
+        total       = len(combos)
+        lock        = threading.Lock()
+
+        def probe(args):
+            idx, build_tag, inc = args
+            if self._brute_stop_flag:
+                return idx, build_tag, inc, None, None
+            self._brute_pause_event.wait()
+            if self._brute_stop_flag:
+                return idx, build_tag, inc, None, None
+            fp = template.replace('{BUILD}', build_tag).replace('{INC}', inc)
+            try:
+                settings = perform_checkin(fp)
+                if not settings:
+                    return idx, build_tag, inc, fp, None
+                ota = find_ota_link(settings)
+                return idx, build_tag, inc, fp, ota
+            except Exception as e:
+                return idx, build_tag, inc, fp, f"ERROR:{e}"
+
+        work = [(i, bt, inc) for i, (bt, inc) in enumerate(combos)]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as pool:
+            futures = {pool.submit(probe, item): item for item in work}
+            for fut in concurrent.futures.as_completed(futures):
+                if self._brute_stop_flag:
+                    break
+
+                idx, build_tag, inc, fp, ota = fut.result()
+                with lock:
+                    done_count += 1
+                    self.brute_progress['value'] = done_count
+                    self.brute_status_var.set(
+                        f"[{done_count}/{total}]  workers={n_workers}  found={found_count}"
+                    )
+
+                if ota is None:
+                    self._brute_log(f"  [{idx+1}] BUILD={build_tag} INC={inc} → no response", 'skip')
+                elif isinstance(ota, str) and ota.startswith("ERROR:"):
+                    self._brute_log(f"  [{idx+1}] BUILD={build_tag} INC={inc} → {ota}", 'error')
+                elif not ota.get('url'):
+                    self._brute_log(f"  [{idx+1}] BUILD={build_tag} INC={inc} → no OTA", 'skip')
+                else:
+                    url  = ota['url']
+                    desc = ota.get('description', '')[:80]
+
+                    with lock:
+                        if skip_dupes and url in self._brute_found_urls:
+                            self._brute_log(f"  [{idx+1}] BUILD={build_tag} INC={inc} → duplicate", 'skip')
+                            continue
+                        self._brute_found_urls.add(url)
+                        found_count += 1
+                        local_count = found_count
+
+                    self._brute_log(f"", 'found')
+                    self._brute_log(f"  ★ FOUND #{local_count}  BUILD={build_tag}  INC={inc}", 'found')
+                    self._brute_log(f"    Fingerprint : {fp}", 'found')
+                    self._brute_log(f"    URL         : {url}", 'found')
+                    if desc:
+                        self._brute_log(f"    Description : {desc}", 'found')
+                    self._brute_log(f"", 'found')
+
+                    # Save to OTAs.txt
+                    try:
+                        script_dir = os.path.dirname(os.path.abspath(__file__))
+                        otas_path = os.path.join(script_dir, "OTAs.txt")
+                        with open(otas_path, 'a', encoding='utf-8') as f:
+                            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
+                            f.write(f"  Fingerprint : {fp}\n")
+                            f.write(f"  URL         : {url}\n")
+                            if desc:
+                                f.write(f"  Description : {desc}\n")
+                            f.write("\n")
+                        self._brute_log(f"    Saved to OTAs.txt", 'info')
+                    except Exception as e:
+                        self._brute_log(f"    Could not save to OTAs.txt: {e}", 'error')
+
+                    if pause_on_find:
+                        self._brute_pause_event.clear()
+                        self.brute_status_var.set(f"⏸ Paused after find #{local_count} — press Continue")
+                        self.brute_continue_btn.config(state=tk.NORMAL)
+                        self.brute_stop_btn.config(state=tk.NORMAL)
+                        self._brute_pause_event.wait()
+                        if self._brute_stop_flag:
+                            break
+
+        # Done
+        self._brute_log("=" * 70, 'header')
+        self._brute_log(f"Bruteforce finished. Found {found_count} unique OTA(s).", 'header')
+        self.brute_status_var.set(f"Done — {found_count} unique OTA(s) found.")
+        self.brute_start_btn.config(state=tk.NORMAL)
+        self.brute_stop_btn.config(state=tk.DISABLED)
+        self.brute_continue_btn.config(state=tk.DISABLED)
     
     def update_status(self, message, status_type='info'):
         self.status_var.set(message)
