@@ -4,8 +4,6 @@
 
 # Bruteforce additions added by @RYuhMine! Thank you!
 
-#!/usr/bin/env python3
-
 import sys
 import os
 import gzip
