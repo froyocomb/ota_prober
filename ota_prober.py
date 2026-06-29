@@ -159,11 +159,224 @@ class OTAProberGUI:
         main_frame.columnconfigure(0, weight=1)
         main_frame.rowconfigure(5, weight=1)
         
+        # --- Raw Response tab ---
+        self.raw_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.raw_frame, text="Raw Response")
+        self._build_raw_tab()
+        
+        # --- HTTP INFO TAB ---
+        self.httpinfo_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.httpinfo_frame, text="HTTP Info")
+        self._build_httpinfo_tab()
+
         # --- BRUTEFORCE TAB ---
         self.brute_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.brute_frame, text="Bruteforce")
         self._build_bruteforce_tab()
     
+
+    # ── Raw Response tab ───────────────────────────────────────────────────
+
+    def _build_raw_tab(self):
+        """Raw protobuf response tab: human view + hex view + save button."""
+        wrapper = ttk.Frame(self.raw_frame, padding="4")
+        wrapper.pack(fill=tk.BOTH, expand=True)
+
+        # Toolbar
+        toolbar = ttk.Frame(wrapper)
+        toolbar.pack(fill=tk.X, pady=(0, 4))
+
+        self.raw_view_var = tk.StringVar(value="human")
+
+        ttk.Radiobutton(toolbar, text="Human-readable",
+                        variable=self.raw_view_var, value="human",
+                        command=self._raw_switch_view).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Radiobutton(toolbar, text="Hex dump",
+                        variable=self.raw_view_var, value="hex",
+                        command=self._raw_switch_view).pack(side=tk.LEFT, padx=(0, 16))
+
+        ttk.Button(toolbar, text="💾  Save Human",
+                   command=lambda: self._raw_save("human")).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(toolbar, text="💾  Save Hex",
+                   command=lambda: self._raw_save("hex")).pack(side=tk.LEFT)
+
+        self.raw_text = scrolledtext.ScrolledText(
+            wrapper,
+            wrap=tk.NONE,
+            font=('Courier', 9),
+            bg='white',
+            fg='#333333'
+        )
+        self.raw_text.pack(fill=tk.BOTH, expand=True)
+
+        # Internal storage for both views
+        self._raw_human = ""
+        self._raw_hex   = ""
+
+    def _raw_populate(self, human: str, hex_: str):
+        """Store both views and display the currently selected one."""
+        self._raw_human = human
+        self._raw_hex   = hex_
+        self._raw_switch_view()
+
+    def _raw_switch_view(self):
+        content = self._raw_human if self.raw_view_var.get() == "human" else self._raw_hex
+        self.raw_text.config(state=tk.NORMAL)
+        self.raw_text.delete(1.0, tk.END)
+        self.raw_text.insert(tk.END, content)
+        self.raw_text.see("1.0")
+
+    def _raw_save(self, mode: str):
+        content = self._raw_human if mode == "human" else self._raw_hex
+        if not content:
+            messagebox.showinfo("Raw Response", "No data to save yet.")
+            return
+        ext = "_human.txt" if mode == "human" else "_hex.txt"
+        from tkinter import filedialog
+        import os
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        path = filedialog.asksaveasfilename(
+            initialdir=script_dir,
+            initialfile=f"raw_response{ext}",
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+        )
+        if path:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            self.update_status(f"Saved to {path}", 'success')
+
+    # ── Auto-populate URL when a query succeeds ────────────────────────────
+
+    def _meta_autofill_url(self, url: str):
+        """Pre-fill HTTP Info URL box after a successful query."""
+        self.httpinfo_url_var.set(url)
+
+    # ── HTTP Info tab ──────────────────────────────────────────────────────
+
+    def _build_httpinfo_tab(self):
+        wrapper = ttk.Frame(self.httpinfo_frame, padding="8")
+        wrapper.pack(fill=tk.BOTH, expand=True)
+
+        # URL row
+        url_lf = ttk.LabelFrame(wrapper, text="OTA URL", padding="6")
+        url_lf.pack(fill=tk.X, pady=(0, 6))
+        self.httpinfo_url_var = tk.StringVar()
+        ttk.Entry(url_lf, textvariable=self.httpinfo_url_var,
+                  font=('Courier', 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        self.httpinfo_fetch_btn = ttk.Button(url_lf, text="▶  Fetch",
+                                             command=self._httpinfo_start)
+        self.httpinfo_fetch_btn.pack(side=tk.LEFT)
+
+        # Status
+        self.httpinfo_status_var = tk.StringVar(value="Enter an OTA URL and press Fetch")
+        ttk.Label(wrapper, textvariable=self.httpinfo_status_var,
+                  foreground='#0066cc').pack(anchor=tk.W, pady=(0, 4))
+        self.httpinfo_progress = ttk.Progressbar(wrapper, mode='indeterminate')
+        self.httpinfo_progress.pack(fill=tk.X, pady=(0, 6))
+
+        # Notebook inside for categories
+        self.httpinfo_nb = ttk.Notebook(wrapper)
+        self.httpinfo_nb.pack(fill=tk.BOTH, expand=True)
+
+        def _make_tree(parent, col1="Field", col2="Value"):
+            f = ttk.Frame(parent)
+            cols = ("field", "value")
+            tv = ttk.Treeview(f, columns=cols, show="headings")
+            tv.heading("field", text=col1)
+            tv.heading("value", text=col2)
+            tv.column("field", width=260, stretch=False)
+            tv.column("value", width=560, stretch=True)
+            sb = ttk.Scrollbar(f, orient=tk.VERTICAL, command=tv.yview)
+            tv.configure(yscrollcommand=sb.set)
+            tv.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            sb.pack(side=tk.RIGHT, fill=tk.Y)
+
+            # Copy value on single click, full row on double click
+            def _copy_value(event):
+                sel = tv.selection()
+                if not sel:
+                    return
+                value = tv.item(sel[0], 'values')[1]
+                self.root.clipboard_clear()
+                self.root.clipboard_append(value)
+                self.httpinfo_status_var.set(f"Copied: {value[:80]}{'…' if len(value) > 80 else ''}")
+
+            def _copy_row(event):
+                sel = tv.selection()
+                if not sel:
+                    return
+                k, v = tv.item(sel[0], 'values')
+                self.root.clipboard_clear()
+                self.root.clipboard_append(f"{k}: {v}")
+                self.httpinfo_status_var.set(f"Copied row: {k}")
+
+            tv.bind('<ButtonRelease-1>', _copy_value)
+            tv.bind('<Double-ButtonRelease-1>', _copy_row)
+            return f, tv
+
+
+        # Tab: General
+        gen_f, self.hi_tree_general = _make_tree(self.httpinfo_nb, "Property", "Value")
+        self.httpinfo_nb.add(gen_f, text="General")
+
+        # Tab: Response Headers
+        hdr_f, self.hi_tree_headers = _make_tree(self.httpinfo_nb, "Header", "Value")
+        self.httpinfo_nb.add(hdr_f, text="Response Headers")
+
+        # Tab: Redirect Chain
+        redir_f, self.hi_tree_redirects = _make_tree(self.httpinfo_nb, "#", "URL")
+        self.httpinfo_nb.add(redir_f, text="Redirect Chain")
+
+        # Tab: Security
+        sec_f, self.hi_tree_security = _make_tree(self.httpinfo_nb, "Property", "Value")
+        self.httpinfo_nb.add(sec_f, text="Security / TLS")
+
+        # Tab: Timing
+        tim_f, self.hi_tree_timing = _make_tree(self.httpinfo_nb, "Phase", "ms")
+        self.httpinfo_nb.add(tim_f, text="Timing")
+
+    def _httpinfo_start(self):
+        url = self.httpinfo_url_var.get().strip()
+        if not url:
+            messagebox.showerror("HTTP Info", "Please enter an OTA URL first.")
+            return
+        self.httpinfo_fetch_btn.config(state=tk.DISABLED)
+        self.httpinfo_progress.start(12)
+        self.httpinfo_status_var.set("Probing…")
+        threading.Thread(target=self._httpinfo_worker, args=(url,), daemon=True).start()
+
+    def _httpinfo_worker(self, url):
+        try:
+            result = probe_ota_url(url, status_cb=lambda m: self.root.after(
+                0, self.httpinfo_status_var.set, m))
+            self.root.after(0, self._httpinfo_display, result)
+        except Exception as exc:
+            self.root.after(0, self.httpinfo_status_var.set, f"Error: {exc}")
+        finally:
+            self.root.after(0, self._httpinfo_done)
+
+    def _httpinfo_done(self):
+        self.httpinfo_progress.stop()
+        self.httpinfo_fetch_btn.config(state=tk.NORMAL)
+
+    def _httpinfo_display(self, r: dict):
+        def _fill(tree, rows):
+            for ch in tree.get_children():
+                tree.delete(ch)
+            for k, v in rows:
+                tree.insert("", tk.END, values=(k, v))
+
+        _fill(self.hi_tree_general, r.get('general', []))
+        _fill(self.hi_tree_headers, r.get('headers', []))
+        _fill(self.hi_tree_redirects,
+              [(str(i+1), u) for i, u in enumerate(r.get('redirects', []))])
+        _fill(self.hi_tree_security, r.get('security', []))
+        _fill(self.hi_tree_timing,   r.get('timing', []))
+
+        summary = r.get('summary', '')
+        self.httpinfo_status_var.set(summary)
+
     def _build_bruteforce_tab(self):
         """Build the bruteforce search tab UI."""
 
@@ -242,11 +455,13 @@ class OTAProberGUI:
         self.brute_log.tag_configure('error',  foreground='#cc0000')
         self.brute_log.tag_configure('header', foreground='#004499', font=('Courier', 9, 'bold'))
         self.brute_log.tag_configure('info',   foreground='#333333')
+        self.brute_log.tag_configure('changed', foreground='#cc6600', font=('Courier', 9, 'bold'))  # NEW
 
         self._brute_thread      = None
         self._brute_pause_event = threading.Event()
         self._brute_stop_flag   = False
-        self._brute_found_urls  = set()
+        # UPDATED: store metadata per URL
+        self._brute_found_data = {}  # url -> {'title':..., 'description':..., 'size':..., 'fingerprint':..., 'build_tag':..., 'inc':...}
 
     # ── helpers ──────────────────────────────────────────────────────────────
 
@@ -257,7 +472,7 @@ class OTAProberGUI:
 
     def _brute_clear(self):
         self.brute_log.delete(1.0, tk.END)
-        self._brute_found_urls.clear()
+        self._brute_found_data.clear()
         self.brute_progress['value'] = 0
         self.brute_status_var.set("Idle")
 
@@ -295,7 +510,7 @@ class OTAProberGUI:
 
         self._brute_stop_flag = False
         self._brute_pause_event.set()   # start unpaused
-        self._brute_found_urls.clear()
+        self._brute_found_data.clear()
 
         self.brute_start_btn.config(state=tk.DISABLED)
         self.brute_stop_btn.config(state=tk.NORMAL)
@@ -351,7 +566,7 @@ class OTAProberGUI:
                 return idx, build_tag, inc, None, None
             fp = template.replace('{BUILD}', build_tag).replace('{INC}', inc)
             try:
-                settings = perform_checkin(fp)
+                settings, _raw = perform_checkin(fp)
                 if not settings:
                     return idx, build_tag, inc, fp, None
                 ota = find_ota_link(settings)
@@ -383,34 +598,89 @@ class OTAProberGUI:
                     self._brute_log(f"  [{idx+1}] BUILD={build_tag} INC={inc} → no OTA", 'skip')
                 else:
                     url  = ota['url']
-                    desc = ota.get('description', '')[:80]
+                    title = ota.get('title', '')
+                    desc = ota.get('description', '')
+                    size = ota.get('size', '')
+                    # metadata tuple for comparison
+                    meta = (title, desc, size)
 
                     with lock:
-                        if skip_dupes and url in self._brute_found_urls:
-                            self._brute_log(f"  [{idx+1}] BUILD={build_tag} INC={inc} → duplicate", 'skip')
-                            continue
-                        self._brute_found_urls.add(url)
-                        found_count += 1
-                        local_count = found_count
+                        old_meta = self._brute_found_data.get(url)
+                        if old_meta is None:
+                            # completely new URL
+                            self._brute_found_data[url] = meta
+                            found_count += 1
+                            local_count = found_count
+                            is_new = True
+                            is_changed = False
+                        else:
+                            # URL already seen – check if metadata changed
+                            if meta != old_meta:
+                                # changed
+                                self._brute_found_data[url] = meta  # update
+                                found_count += 1
+                                local_count = found_count
+                                is_new = False
+                                is_changed = True
+                            else:
+                                # same metadata
+                                is_new = False
+                                is_changed = False
+                                if skip_dupes:
+                                    self._brute_log(f"  [{idx+1}] BUILD={build_tag} INC={inc} → duplicate (same metadata)", 'skip')
+                                    continue
+                                else:
+                                    # log but continue (no pause)
+                                    self._brute_log(f"  [{idx+1}] BUILD={build_tag} INC={inc} → duplicate (metadata same)", 'skip')
+                                    continue
 
-                    self._brute_log(f"", 'found')
-                    self._brute_log(f"  ★ FOUND #{local_count}  BUILD={build_tag}  INC={inc}", 'found')
-                    self._brute_log(f"    Fingerprint : {fp}", 'found')
-                    self._brute_log(f"    URL         : {url}", 'found')
-                    if desc:
-                        self._brute_log(f"    Description : {desc}", 'found')
-                    self._brute_log(f"", 'found')
+                    # We have either new URL or changed metadata
+                    if is_new:
+                        self._brute_log(f"", 'found')
+                        self._brute_log(f"  ★ FOUND #{local_count}  BUILD={build_tag}  INC={inc}", 'found')
+                        self._brute_log(f"    Fingerprint : {fp}", 'found')
+                        self._brute_log(f"    URL         : {url}", 'found')
+                        if title:
+                            self._brute_log(f"    Title       : {title}", 'found')
+                        if desc:
+                            self._brute_log(f"    Description : {desc[:80]}{'...' if len(desc)>80 else ''}", 'found')
+                        if size:
+                            self._brute_log(f"    Size        : {size}", 'found')
+                        self._brute_log(f"", 'found')
+                    elif is_changed:
+                        old_title, old_desc, old_size = old_meta
+                        self._brute_log(f"", 'changed')
+                        self._brute_log(f"  ⚡ UPDATED #{local_count}  BUILD={build_tag}  INC={inc}", 'changed')
+                        self._brute_log(f"    Fingerprint : {fp}", 'changed')
+                        self._brute_log(f"    URL         : {url}", 'changed')
+                        if old_title != title:
+                            self._brute_log(f"    Title (old) : {old_title}", 'changed')
+                            self._brute_log(f"    Title (new) : {title}", 'changed')
+                        if old_desc != desc:
+                            self._brute_log(f"    Description (old): {old_desc[:80]}{'...' if len(old_desc)>80 else ''}", 'changed')
+                            self._brute_log(f"    Description (new): {desc[:80]}{'...' if len(desc)>80 else ''}", 'changed')
+                        if old_size != size:
+                            self._brute_log(f"    Size (old)  : {old_size}", 'changed')
+                            self._brute_log(f"    Size (new)  : {size}", 'changed')
+                        self._brute_log(f"", 'changed')
 
-                    # Save to OTAs.txt
+                    # Save to OTAs.txt (for both new and changed)
                     try:
                         script_dir = os.path.dirname(os.path.abspath(__file__))
                         otas_path = os.path.join(script_dir, "OTAs.txt")
                         with open(otas_path, 'a', encoding='utf-8') as f:
-                            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n")
+                            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
+                            if is_changed:
+                                f.write(" [UPDATED]")
+                            f.write("\n")
                             f.write(f"  Fingerprint : {fp}\n")
                             f.write(f"  URL         : {url}\n")
+                            if title:
+                                f.write(f"  Title       : {title}\n")
                             if desc:
                                 f.write(f"  Description : {desc}\n")
+                            if size:
+                                f.write(f"  Size        : {size}\n")
                             f.write("\n")
                         self._brute_log(f"    Saved to OTAs.txt", 'info')
                     except Exception as e:
@@ -418,7 +688,10 @@ class OTAProberGUI:
 
                     if pause_on_find:
                         self._brute_pause_event.clear()
-                        self.brute_status_var.set(f"⏸ Paused after find #{local_count} — press Continue")
+                        if is_new:
+                            self.brute_status_var.set(f"⏸ Paused after new find #{local_count} — press Continue")
+                        else:
+                            self.brute_status_var.set(f"⏸ Paused after metadata change #{local_count} — press Continue")
                         self.brute_continue_btn.config(state=tk.NORMAL)
                         self.brute_stop_btn.config(state=tk.NORMAL)
                         self._brute_pause_event.wait()
@@ -427,8 +700,8 @@ class OTAProberGUI:
 
         # Done
         self._brute_log("=" * 70, 'header')
-        self._brute_log(f"Bruteforce finished. Found {found_count} unique OTA(s).", 'header')
-        self.brute_status_var.set(f"Done — {found_count} unique OTA(s) found.")
+        self._brute_log(f"Bruteforce finished. Found {len(self._brute_found_data)} unique OTA(s) (including metadata changes).", 'header')
+        self.brute_status_var.set(f"Done — {len(self._brute_found_data)} unique OTA(s) found (with metadata variants).")
         self.brute_start_btn.config(state=tk.NORMAL)
         self.brute_stop_btn.config(state=tk.DISABLED)
         self.brute_continue_btn.config(state=tk.DISABLED)
@@ -477,6 +750,7 @@ class OTAProberGUI:
             self.html_frame.load_html("")
         elif self.desc_text:
             self.desc_text.delete(1.0, tk.END)
+        self.raw_text.delete(1.0, tk.END)
         self.status_icon_var.set("")
         self.ota_link_label.config(text="")
         self.current_ota_link = None
@@ -512,6 +786,7 @@ class OTAProberGUI:
     def perform_query(self, fingerprint):
         try:
             self.output_text.delete(1.0, tk.END)
+            self.raw_text.delete(1.0, tk.END)
             if self.html_frame:
                 self.html_frame.load_html("")
             elif self.desc_text:
@@ -523,13 +798,21 @@ class OTAProberGUI:
             parsed = parse_fingerprint(fingerprint)
             self.update_status("Sending check-in request...")
             
-            settings = perform_checkin(fingerprint)
+            settings, raw_bytes = perform_checkin(fingerprint)
             
             if not settings:
                 self.log_output("ERROR: Check-in failed - No response from server", 'error')
                 self.status_icon_var.set("❌")
                 self.update_status("Query failed", 'error')
             else:
+                # Display true raw protobuf bytes in Raw Response tab
+                if raw_bytes:
+                    human_dump, hex_dump = format_raw_response(raw_bytes)
+                else:
+                    fallback = json.dumps(settings, indent=2, sort_keys=True)
+                    human_dump, hex_dump = fallback, fallback
+                self._raw_populate(human_dump, hex_dump)
+                
                 build_info = extract_build_details(fingerprint, settings)
                 ota_link = find_ota_link(settings)
                 
@@ -621,42 +904,60 @@ class OTAProberGUI:
             self.output_text.insert(tk.END, f"  Status:            ", 'info')
             self.output_text.insert(tk.END, "[OK] Update Available\n", 'success')
             
+            if ota_link.get('title'):
+                self.log_output(f"  Title:             {ota_link['title']}", 'info')
+            
             self.log_output(f"\n  Target URL:", 'info')
             self.output_text.insert(tk.END, "    ", 'info')
             self.log_link(ota_link['url'], ota_link['url'])
             self.output_text.insert(tk.END, '\n', 'info')
             
+            if ota_link.get('size'):
+                self.log_output(f"  Size:              {ota_link['size']}", 'info')
+            
             self.current_ota_link = ota_link['url']
             header_text = f"🔗 {ota_link['url']}"
             self.ota_link_label.config(text=header_text, foreground='#0066cc')
+            # Auto-fill Metadata tab URL so user can fetch with one click
+            self._meta_autofill_url(ota_link['url'])
             
-            if ota_link['description']:
-                desc = ota_link['description']
-                
-                if self.html_frame:
-                    html_content = f"""
-                    <html>
-                    <head>
-                        <style>
-                            body {{ font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }}
-                            strong {{ color: #333; }}
-                            a {{ color: #0066cc; text-decoration: none; }}
-                            a:hover {{ text-decoration: underline; }}
-                            p {{ margin: 10px 0; }}
-                            br {{ margin: 5px 0; }}
-                        </style>
-                    </head>
-                    <body>
-                    {desc}
-                    </body>
-                    </html>
-                    """
-                    self.html_frame.load_html(html_content)
-                elif self.desc_text:
-                    self.desc_text.insert(tk.END, desc)
-                
-                self.log_output(f"\n  Description:", 'info')
-                desc_plain = desc.replace('<br>', '\n').replace('<p>', '').replace('</p>', '').replace('<strong>', '').replace('</strong>', '').replace('<a href="', '').replace('">', '').replace('</a>', '')
+            desc_parts = []
+            if ota_link.get('title'):
+                desc_parts.append(f"<strong>Title:</strong> {ota_link['title']}<br>")
+            if ota_link.get('description'):
+                desc_parts.append(ota_link['description'])
+            if ota_link.get('size'):
+                desc_parts.append(f"<br><strong>Size:</strong> {ota_link['size']}")
+            desc_html = "".join(desc_parts) if desc_parts else "(No description available)"
+            
+            if self.html_frame:
+                html_content = f"""
+                <html>
+                <head>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }}
+                        strong {{ color: #333; }}
+                        a {{ color: #0066cc; text-decoration: none; }}
+                        a:hover {{ text-decoration: underline; }}
+                        p {{ margin: 10px 0; }}
+                        br {{ margin: 5px 0; }}
+                    </style>
+                </head>
+                <body>
+                {desc_html}
+                </body>
+                </html>
+                """
+                self.html_frame.load_html(html_content)
+            elif self.desc_text:
+                desc_plain = desc_html.replace('<br>', '\n').replace('<p>', '').replace('</p>', '').replace('<strong>', '').replace('</strong>', '').replace('<a href="', '').replace('">', '').replace('</a>', '')
+                self.desc_text.insert(tk.END, desc_plain)
+            
+            self.log_output(f"\n  Description:", 'info')
+            if ota_link.get('title'):
+                self.log_output(f"    Title: {ota_link['title']}", 'info')
+            if ota_link.get('description'):
+                desc_plain = ota_link['description'].replace('<br>', '\n').replace('<p>', '').replace('</p>', '').replace('<strong>', '').replace('</strong>', '').replace('<a href="', '').replace('">', '').replace('</a>', '')
                 if len(desc_plain) > 70:
                     words = desc_plain.split()
                     lines = []
@@ -674,17 +975,14 @@ class OTAProberGUI:
                         self.log_output(line, 'info')
                 else:
                     self.log_output(f"    {desc_plain}", 'info')
-            else:
-                if self.html_frame:
-                    self.html_frame.load_html("<p>(No description available)</p>")
-                elif self.desc_text:
-                    self.desc_text.insert(tk.END, "(No description available)")
+            if ota_link.get('size'):
+                self.log_output(f"    Size: {ota_link['size']}", 'info')
             
-            if ota_link['precondition']:
+            if ota_link.get('precondition'):
                 self.log_output(f"\n  Precondition:", 'info')
                 self.log_output(f"    {ota_link['precondition']}", 'info')
             
-            if ota_link['postcondition']:
+            if ota_link.get('postcondition'):
                 self.log_output(f"\n  Postcondition:", 'info')
                 self.log_output(f"    {ota_link['postcondition']}", 'info')
         else:
@@ -821,6 +1119,188 @@ def parse_protobuf_response(data):
     
     return settings
 
+# Field name maps per nesting level
+_CHECKIN_RESPONSE_FIELDS = {
+    1: 'android_id',
+    2: 'security_token',
+    3: 'time_msec',
+    4: 'settings_diff',
+    5: 'setting',
+    6: 'digest',
+    7: 'android_id_alt',
+    8: 'market_ok',
+    9: 'gservices_digest',
+    10: 'checkin_interval_msec',
+    11: 'checkin',
+    12: 'min_checkin_interval_msec',
+    13: 'intent',
+    14: 'account',
+    15: 'gcm_response',
+    16: 'device_data_version',
+    17: 'last_checkin_msec',
+    18: 'deleted_setting',
+    19: 'new_device_cookie',
+    20: 'device_checkin_consistency_token',
+}
+
+# field 5 (setting) sub-fields
+_SETTING_FIELDS = {
+    1: 'name',
+    2: 'value',
+}
+
+
+def _is_valid_protobuf(data):
+    """
+    Heuristic: try to walk the entire buffer as protobuf.
+    Returns True only if every field parses cleanly to the end with no errors
+    and at least one field was found.
+    Wire types 3,4,6,7 are reserved/invalid in proto3 — reject immediately.
+    """
+    offset = 0
+    count = 0
+    try:
+        while offset < len(data):
+            tag, offset = decode_varint(data, offset)
+            wire_type = tag & 0x07
+            if wire_type in (3, 4, 6, 7):
+                return False
+            if wire_type == 0:
+                _, offset = decode_varint(data, offset)
+            elif wire_type == 1:
+                if offset + 8 > len(data):
+                    return False
+                offset += 8
+            elif wire_type == 2:
+                length, offset = decode_varint(data, offset)
+                if offset + length > len(data):
+                    return False
+                offset += length
+            elif wire_type == 5:
+                if offset + 4 > len(data):
+                    return False
+                offset += 4
+            else:
+                return False
+            count += 1
+        return count > 0 and offset == len(data)
+    except Exception:
+        return False
+
+
+def parse_protobuf_full(data, indent=0, field_names=None):
+    """
+    Recursively parse raw protobuf bytes into human-readable lines.
+    field_names: dict mapping field_number -> label for this nesting level.
+    Only recurse into nested messages when _is_valid_protobuf passes.
+    """
+    if field_names is None:
+        field_names = _CHECKIN_RESPONSE_FIELDS
+
+    lines = []
+    offset = 0
+    pad = '  ' * indent
+
+    while offset < len(data):
+        try:
+            tag, offset = decode_varint(data, offset)
+        except Exception:
+            lines.append(f"{pad}[parse error at offset {offset}/{len(data)}]")
+            break
+
+        field_number = tag >> 3
+        wire_type = tag & 0x07
+        field_label = field_names.get(field_number, f'field_{field_number}')
+
+        try:
+            if wire_type == 0:
+                val, offset = decode_varint(data, offset)
+                lines.append(f"{pad}[{field_number}] {field_label}  =  {val}")
+
+            elif wire_type == 1:
+                import struct
+                raw8 = data[offset:offset+8]
+                offset += 8
+                val = struct.unpack_from('<q', raw8)[0]
+                lines.append(f"{pad}[{field_number}] {field_label}  =  {val}  (64-bit LE)")
+
+            elif wire_type == 2:
+                length, offset = decode_varint(data, offset)
+                raw = data[offset:offset+length]
+                offset += length
+
+                # Choose child field_names based on known parent field
+                if field_number == 5 and field_names is _CHECKIN_RESPONSE_FIELDS:
+                    child_names = _SETTING_FIELDS
+                else:
+                    child_names = {}  # generic: just field_N labels
+
+                # Recurse only if buffer passes full validation
+                if length > 0 and _is_valid_protobuf(raw):
+                    nested = parse_protobuf_full(raw, indent + 1, child_names)
+                    lines.append(f"{pad}[{field_number}] {field_label}  {{")
+                    lines.extend(nested)
+                    lines.append(f"{pad}}}")
+                else:
+                    # Plain value: try UTF-8, use repr so \n stays escaped
+                    try:
+                        txt = raw.decode('utf-8')
+                        txt_repr = repr(txt)[1:-1]
+                        lines.append(f"{pad}[{field_number}] {field_label}  =  \"{txt_repr}\"")
+                    except Exception:
+                        hex_str = raw.hex()
+                        if len(hex_str) > 120:
+                            hex_str = hex_str[:120] + f' ... ({length} bytes total)'
+                        lines.append(f"{pad}[{field_number}] {field_label}  =  <bytes> {hex_str}")
+
+            elif wire_type == 5:
+                import struct
+                raw4 = data[offset:offset+4]
+                offset += 4
+                val = struct.unpack_from('<I', raw4)[0]
+                lines.append(f"{pad}[{field_number}] {field_label}  =  {val}  (32-bit LE)")
+
+            else:
+                lines.append(f"{pad}[{field_number}] unknown wire_type={wire_type}, stopping parse")
+                break
+
+        except Exception as e:
+            lines.append(f"{pad}[{field_number}] parse error: {e}")
+            break
+
+    return lines
+
+
+def format_raw_response(raw_bytes):
+    """
+    Returns (human_str, hex_str):
+      human_str — full protobuf field tree with repr-escaped string values
+      hex_str   — classic hex dump (offset | hex | ascii)
+    """
+    n = len(raw_bytes)
+    header = f"=== RAW PROTOBUF RESPONSE  ({n} bytes) ===\n"
+
+    # ── Human-readable field tree ──────────────────────────────────────────
+    human_lines = [header, "--- FIELD TREE ---"]
+    try:
+        tree = parse_protobuf_full(raw_bytes, indent=0)
+        human_lines.extend(tree)
+    except Exception as e:
+        human_lines.append(f"[parser error: {e}]")
+    human_str = '\n'.join(human_lines)
+
+    # ── Hex dump ───────────────────────────────────────────────────────────
+    hex_lines = [header, "--- HEX DUMP ---"]
+    for i in range(0, n, 16):
+        chunk = raw_bytes[i:i+16]
+        hex_part = ' '.join(f'{b:02x}' for b in chunk)
+        asc_part = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
+        hex_lines.append(f"  {i:06x}  {hex_part:<47}  {asc_part}")
+    hex_str = '\n'.join(hex_lines)
+
+    return human_str, hex_str
+
+
 def build_checkin_request(fingerprint):
     try:
         parsed = parse_fingerprint(fingerprint)
@@ -858,6 +1338,7 @@ def build_checkin_request(fingerprint):
     return request
 
 def perform_checkin(fingerprint):
+    """Returns (settings_dict, raw_bytes) or (None, None) on failure."""
     try:
         parsed = parse_fingerprint(fingerprint)
         request_data = build_checkin_request(fingerprint)
@@ -885,14 +1366,14 @@ def perform_checkin(fingerprint):
                 pass
             
             settings = parse_protobuf_response(response_data)
-            return settings
+            return settings, response_data
     
     except urllib.error.URLError as e:
         print(f"Error: {e}", file=sys.stderr)
-        return None
+        return None, None
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        return None
+        return None, None
 
 def get_android_version(api_level):
     try:
@@ -987,9 +1468,11 @@ def find_ota_link(settings):
     
     return {
         'url': settings['update_url'],
+        'title': settings.get('update_title', ''),
         'description': settings.get('update_description', ''),
         'precondition': settings.get('update_precondition', ''),
         'postcondition': settings.get('update_postcondition', ''),
+        'size': settings.get('update_size', ''),
     }
 
 def get_service_summary(settings):
@@ -1018,10 +1501,14 @@ def format_output(fingerprint, settings, build_info, ota_link):
     output.append("\n[OTA UPDATE]")
     if ota_link:
         output.append(f"  Status:            [OK] Update Available")
+        if ota_link.get('title'):
+            output.append(f"  Title:             {ota_link['title']}")
         output.append(f"\n  Target URL:")
         output.append(f"    {ota_link['url']}")
+        if ota_link.get('size'):
+            output.append(f"  Size:              {ota_link['size']}")
         
-        if ota_link['description']:
+        if ota_link.get('description'):
             output.append(f"\n  Description:")
             desc = ota_link['description']
             if len(desc) > 70:
@@ -1041,11 +1528,11 @@ def format_output(fingerprint, settings, build_info, ota_link):
             else:
                 output.append(f"    {desc}")
         
-        if ota_link['precondition']:
+        if ota_link.get('precondition'):
             output.append(f"\n  Precondition:")
             output.append(f"    {ota_link['precondition']}")
         
-        if ota_link['postcondition']:
+        if ota_link.get('postcondition'):
             output.append(f"\n  Postcondition:")
             output.append(f"    {ota_link['postcondition']}")
     else:
@@ -1055,6 +1542,228 @@ def format_output(fingerprint, settings, build_info, ota_link):
     
     return "\n".join(output)
 
+
+
+
+# ---------------------------------------------------------------------------
+# HTTP Info prober — extracts everything a server reveals about an OTA URL
+# without downloading the file body.
+# ---------------------------------------------------------------------------
+
+import ssl
+import socket
+import time
+import http.client
+from urllib.parse import urlparse
+
+
+def probe_ota_url(url: str, status_cb=None, timeout: int = 15) -> dict:
+    """
+    Probe an OTA URL with HEAD requests (no body downloaded).
+    Manually follows redirects to capture every hop and TLS info
+    before closing the connection.
+    """
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    result = {
+        'general':   [],
+        'headers':   [],
+        'redirects': [],
+        'security':  [],
+        'timing':    [],
+        'summary':   '',
+    }
+
+    redirect_chain = []   # list of (url, status_code)
+    current_url    = url
+    max_redirects  = 12
+    final_hdrs     = {}
+    final_status   = None
+    size_human     = ''
+
+    t_start   = time.perf_counter()
+    t_connect = None
+    t_ttfb    = None
+    tls_done  = False
+
+    for hop in range(max_redirects):
+        parsed   = urlparse(current_url)
+        is_https = parsed.scheme == 'https'
+        host     = parsed.netloc
+        path     = (parsed.path or '/') + (('?' + parsed.query) if parsed.query else '')
+
+        _s(f"HEAD hop {hop+1}: {host}{path[:60]}...")
+
+        try:
+            t0  = time.perf_counter()
+            ctx = ssl.create_default_context() if is_https else None
+
+            if is_https:
+                conn = http.client.HTTPSConnection(host, timeout=timeout, context=ctx)
+            else:
+                conn = http.client.HTTPConnection(host, timeout=timeout)
+
+            conn.connect()
+            t_connect = (time.perf_counter() - t0) * 1000
+
+            # grab TLS info right after connect, before request
+            if is_https and not tls_done:
+                try:
+                    sock = conn.sock
+                    cipher_name, proto, bits = sock.cipher()
+                    peer_cert = sock.getpeercert()
+                    result['security'].append(('Protocol',     proto or 'unknown'))
+                    result['security'].append(('Cipher Suite', cipher_name or 'unknown'))
+                    result['security'].append(('Key Bits',     str(bits) if bits else 'unknown'))
+                    if peer_cert:
+                        subj   = dict(x[0] for x in peer_cert.get('subject', []))
+                        issuer = dict(x[0] for x in peer_cert.get('issuer',  []))
+                        result['security'].append(('Cert CN',    subj.get('commonName', '—')))
+                        result['security'].append(('Cert Org',   subj.get('organizationName', '—')))
+                        result['security'].append(('Issuer',     issuer.get('organizationName', '—')))
+                        result['security'].append(('Not Before', peer_cert.get('notBefore', '—')))
+                        result['security'].append(('Not After',  peer_cert.get('notAfter',  '—')))
+                        sans = peer_cert.get('subjectAltName', [])
+                        if sans:
+                            result['security'].append(('SAN', ', '.join(v for _, v in sans)))
+                    tls_done = True
+                except Exception as tls_err:
+                    result['security'].append(('TLS error', str(tls_err)))
+            elif not is_https and not tls_done:
+                result['security'].append(('Protocol', 'HTTP (no TLS)'))
+                tls_done = True
+
+            conn.request('HEAD', path, headers={
+                'User-Agent':      'OTA-Prober/2.0',
+                'Accept-Encoding': 'identity',
+                'Connection':      'close',
+            })
+            resp  = conn.getresponse()
+            t_ttfb = (time.perf_counter() - t0) * 1000
+
+            status = resp.status
+            hdrs   = {k.lower(): v for k, v in resp.getheaders()}
+            conn.close()
+
+            redirect_chain.append((current_url, status))
+            final_hdrs   = hdrs
+            final_status = status
+
+            if status in (301, 302, 303, 307, 308):
+                loc = hdrs.get('location', '')
+                if not loc:
+                    break
+                if loc.startswith('/'):
+                    loc = f"{parsed.scheme}://{parsed.netloc}{loc}"
+                elif not loc.startswith('http'):
+                    loc = f"{parsed.scheme}://{parsed.netloc}/{loc}"
+                current_url = loc
+                tls_done = False
+                continue
+            else:
+                break
+
+        except Exception as exc:
+            result['summary'] = f"Error on hop {hop+1}: {exc}"
+            return result
+
+    t_total = (time.perf_counter() - t_start) * 1000
+
+    # Redirect chain (all hops including final)
+    result['redirects'] = [f"[{code}] {u}" for u, code in redirect_chain]
+
+    # General
+    final_url = redirect_chain[-1][0] if redirect_chain else url
+    gen = result['general']
+    gen.append(('Original URL',  url))
+    gen.append(('Final URL',     final_url))
+    gen.append(('HTTP Status',   f"{final_status} {http.client.responses.get(final_status, '')}"))
+    gen.append(('Redirect Hops', str(len(redirect_chain) - 1)))
+
+    cl = final_hdrs.get('content-length', '')
+    if cl:
+        try:
+            sb = int(cl)
+            if sb >= 1_073_741_824:
+                size_human = f"{sb/1_073_741_824:.2f} GiB"
+            elif sb >= 1_048_576:
+                size_human = f"{sb/1_048_576:.2f} MiB"
+            else:
+                size_human = f"{sb/1024:.1f} KiB"
+            gen.append(('File Size', f"{size_human}  ({sb:,} bytes)"))
+        except ValueError:
+            gen.append(('File Size', cl))
+
+    for label, key in [
+        ('Content-Type',  'content-type'),
+        ('Server',        'server'),
+        ('Via',           'via'),
+        ('ETag',          'etag'),
+        ('Last-Modified', 'last-modified'),
+        ('Accept-Ranges', 'accept-ranges'),
+        ('Cache-Control', 'cache-control'),
+        ('Expires',       'expires'),
+        ('Age',           'age'),
+    ]:
+        v = final_hdrs.get(key)
+        if v:
+            gen.append((label, v))
+
+    for cdn_key in ('x-cache', 'cf-cache-status', 'x-served-by',
+                    'x-cache-hits', 'x-amz-cf-pop', 'x-amz-cf-id'):
+        if cdn_key in final_hdrs:
+            gen.append((cdn_key, final_hdrs[cdn_key]))
+
+    for dkey in ('content-md5', 'digest', 'x-goog-hash',
+                 'x-amz-checksum-sha256', 'x-amz-checksum-crc32'):
+        if dkey in final_hdrs:
+            gen.append((dkey, final_hdrs[dkey]))
+
+    for gkey in ('x-goog-generation', 'x-goog-metageneration',
+                 'x-goog-stored-content-encoding',
+                 'x-goog-stored-content-length',
+                 'x-goog-storage-class', 'x-goog-expiration',
+                 'x-guploader-uploadid', 'x-robots-tag',
+                 'x-goog-download-filename'):
+        if gkey in final_hdrs:
+            gen.append((gkey, final_hdrs[gkey]))
+
+    # Convert x-goog-generation (microseconds since Unix epoch) to human date
+    gen_val = final_hdrs.get('x-goog-generation', '')
+    if gen_val:
+        try:
+            import datetime
+            ts_sec = int(gen_val) / 1_000_000
+            dt = datetime.datetime.utcfromtimestamp(ts_sec)
+            gen.append(('Created (from generation)', dt.strftime('%Y-%m-%d %H:%M:%S UTC')))
+        except Exception:
+            pass
+
+    for skey in ('strict-transport-security', 'access-control-allow-origin',
+                 'x-content-type-options', 'x-frame-options',
+                 'content-security-policy', 'permissions-policy',
+                 'cross-origin-resource-policy'):
+        if skey in final_hdrs:
+            gen.append((skey, final_hdrs[skey]))
+
+    result['headers'] = sorted(final_hdrs.items())
+
+    tim = result['timing']
+    if t_connect is not None:
+        tim.append(('TCP + TLS handshake', f"{t_connect:.1f} ms"))
+    if t_ttfb is not None:
+        tim.append(('Time to first byte',  f"{t_ttfb:.1f} ms"))
+    tim.append(('Total probe time',        f"{t_total:.1f} ms"))
+
+    nhops = len(redirect_chain) - 1
+    result['summary'] = (
+        f"Done - HTTP {final_status}, {nhops} redirect(s), "
+        f"{len(final_hdrs)} response headers"
+        + (f", {size_human}" if size_human else "")
+    )
+    return result
 
 def main():
     root = tk.Tk()
