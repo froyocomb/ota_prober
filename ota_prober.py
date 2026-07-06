@@ -31,6 +31,7 @@ class OTAProberGUI:
         self.setup_styles()
         self.create_widgets()
         self.query_thread = None
+        self.keyscan_thread = None
     
     def setup_styles(self):
         style = ttk.Style()
@@ -78,6 +79,9 @@ class OTAProberGUI:
         
         self.query_button = ttk.Button(button_frame, text="Query Device", command=self.on_query_click)
         self.query_button.pack(side=tk.LEFT, padx=5)
+        
+        self.keyscan_button = ttk.Button(button_frame, text="Scan Key Types", command=self.on_keyscan_click)
+        self.keyscan_button.pack(side=tk.LEFT, padx=5)
         
         self.clear_button = ttk.Button(button_frame, text="Clear Output", command=self.on_clear_click)
         self.clear_button.pack(side=tk.LEFT, padx=5)
@@ -777,6 +781,7 @@ class OTAProberGUI:
             return
         
         self.query_button.config(state=tk.DISABLED)
+        self.keyscan_button.config(state=tk.DISABLED)
         self.clear_button.config(state=tk.DISABLED)
         self.fingerprint_entry.config(state=tk.DISABLED)
         
@@ -857,6 +862,7 @@ class OTAProberGUI:
             self.update_status(f"Error: {e}", 'error')
         finally:
             self.query_button.config(state=tk.NORMAL)
+            self.keyscan_button.config(state=tk.NORMAL)
             self.clear_button.config(state=tk.NORMAL)
             self.fingerprint_entry.config(state=tk.NORMAL)
     
@@ -996,6 +1002,121 @@ class OTAProberGUI:
                 self.desc_text.insert(tk.END, "No OTA update available for this device.")
         
         self.log_output("\n" + "=" * 75, 'header')
+
+
+    # ── NEW: Scan Key Types ──────────────────────────────────────────────
+
+    def on_keyscan_click(self):
+        fingerprint = self.fingerprint_var.get().strip()
+        if not fingerprint:
+            messagebox.showerror("Error", "Please enter a fingerprint")
+            return
+        if '/' not in fingerprint:
+            messagebox.showerror("Error", "Invalid fingerprint format")
+            return
+
+        self.query_button.config(state=tk.DISABLED)
+        self.keyscan_button.config(state=tk.DISABLED)
+        self.clear_button.config(state=tk.DISABLED)
+        self.fingerprint_entry.config(state=tk.DISABLED)
+
+        self.keyscan_thread = threading.Thread(target=self.perform_keyscan, args=(fingerprint,), daemon=True)
+        self.keyscan_thread.start()
+
+    def perform_keyscan(self, fingerprint):
+        try:
+            # Clear output and status
+            self.output_text.delete(1.0, tk.END)
+            self.raw_text.delete(1.0, tk.END)
+            if self.html_frame:
+                self.html_frame.load_html("")
+            elif self.desc_text:
+                self.desc_text.delete(1.0, tk.END)
+            self.url_map.clear()
+            self.current_ota_link = None
+            self.status_icon_var.set("")
+            self.ota_link_label.config(text="")
+
+            # Split fingerprint at the last ':' – everything before is the prefix
+            if ':' not in fingerprint:
+                raise ValueError("Fingerprint must contain at least one ':' separator")
+            prefix, original_key = fingerprint.rsplit(':', 1)
+
+            key_types = [
+                "user/release-keys",
+                "user/dev-keys",
+                "user/test-keys",
+                "userdebug/dev-keys",
+                "userdebug/test-keys",
+                "eng/dev-keys",
+                "eng/test-keys"
+            ]
+
+            self.log_output("=" * 75, 'header')
+            self.log_output("KEY TYPE SCAN RESULTS", 'header')
+            self.log_output("=" * 75, 'header')
+            self.log_output(f"Fingerprint base: {prefix}:", 'info')
+            self.log_output("")
+
+            found_links = []  # list of (key_type, url, title, size)
+            total = len(key_types)
+
+            for i, key in enumerate(key_types, 1):
+                test_fp = f"{prefix}:{key}"
+                self.log_output(f"[{i}/{total}] {key}", 'section')
+                self.log_output(f"  Fingerprint: {test_fp}", 'info')
+                self.update_status(f"Scanning {key} ({i}/{total})...")
+
+                try:
+                    settings, raw_bytes = perform_checkin(test_fp)
+                    if not settings:
+                        self.log_output("  Status: ❌ No response from server", 'error')
+                        continue
+
+                    ota = find_ota_link(settings)
+                    if ota and ota.get('url'):
+                        self.log_output("  Status: ✅ OTA found", 'success')
+                        self.log_output(f"  URL: {ota['url']}", 'success')
+                        if ota.get('title'):
+                            self.log_output(f"  Title: {ota['title']}", 'info')
+                        if ota.get('size'):
+                            self.log_output(f"  Size: {ota['size']}", 'info')
+                        found_links.append((key, ota['url'], ota.get('title', ''), ota.get('size', '')))
+                    else:
+                        self.log_output("  Status: ❌ No OTA", 'error')
+                except Exception as e:
+                    self.log_output(f"  Status: ❌ Error: {e}", 'error')
+
+                self.log_output("", 'info')
+
+            # Summary
+            self.log_output("=" * 75, 'header')
+            if found_links:
+                self.log_output(f"SUMMARY: Found {len(found_links)} OTA link(s)", 'success')
+                for key, url, title, size in found_links:
+                    self.log_output(f"  - {key} → {url}", 'success')
+                    if title:
+                        self.log_output(f"      Title: {title}", 'info')
+                    if size:
+                        self.log_output(f"      Size: {size}", 'info')
+            else:
+                self.log_output("SUMMARY: No OTA links found for any key type", 'error')
+            self.log_output("=" * 75, 'header')
+
+            self.update_status(f"Key scan completed – {len(found_links)} OTA(s) found", 'success' if found_links else 'error')
+            self.status_icon_var.set("✓" if found_links else "❌")
+
+        except ValueError as e:
+            self.log_output(f"ERROR: {e}", 'error')
+            self.update_status("Invalid fingerprint format", 'error')
+        except Exception as e:
+            self.log_output(f"ERROR: {e}", 'error')
+            self.update_status(f"Error: {e}", 'error')
+        finally:
+            self.query_button.config(state=tk.NORMAL)
+            self.keyscan_button.config(state=tk.NORMAL)
+            self.clear_button.config(state=tk.NORMAL)
+            self.fingerprint_entry.config(state=tk.NORMAL)
 
 
 def parse_fingerprint(fingerprint):
