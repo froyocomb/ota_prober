@@ -41,6 +41,11 @@ class OTAProberGUI:
         self.query_thread = None
         self.keyscan_thread = None
 
+        # Для брутфорсу
+        self._brute_log_buffer = []
+        self._brute_log_window = None
+        self._brute_log_text = None
+
     def setup_styles(self):
         style = ttk.Style()
         style.theme_use('clam')
@@ -65,7 +70,7 @@ class OTAProberGUI:
         self.fingerprint_var = tk.StringVar()
         self.fingerprint_entry = ttk.Entry(input_frame, textvariable=self.fingerprint_var, width=70, font=('Courier', 10))
         self.fingerprint_entry.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
-        self.fingerprint_entry.insert(0, "google/shamu/shamu:5.1/LYZ28E/1858530:user/release-keys")
+        self.fingerprint_entry.insert(0, "google/baracus/baracus:6.0/MRTA.181211.008/5216713:user/release-keys")
 
         ttk.Label(input_frame, text="Format: oem/product/device:api/build_tag/incremental:build_type/key_type",
                   style='Normal.TLabel', foreground='#666666').grid(row=2, column=0, sticky=tk.W)
@@ -381,8 +386,9 @@ class OTAProberGUI:
         self.brute_continue_btn = ttk.Button(btn_row, text="⏩  Continue", command=self._brute_continue, state=tk.DISABLED)
         self.brute_stop_btn = ttk.Button(btn_row, text="⏹  Stop", command=self._brute_stop, state=tk.DISABLED)
         self.brute_clear_log_btn = ttk.Button(btn_row, text="🗑  Clear Log", command=self._brute_clear_log)
+        self.brute_open_log_btn = ttk.Button(btn_row, text="📋  Open Log Window", command=self._open_brute_log_window)
         for btn in (self.brute_start_btn, self.brute_pause_btn, self.brute_continue_btn,
-                    self.brute_stop_btn, self.brute_clear_log_btn):
+                    self.brute_stop_btn, self.brute_clear_log_btn, self.brute_open_log_btn):
             btn.pack(side=tk.LEFT, padx=3)
         self.brute_status_var = tk.StringVar(value="Idle — fill in settings below, then press Start Bruteforce")
         ttk.Label(btn_row, textvariable=self.brute_status_var, foreground='#0066cc').pack(side=tk.LEFT, padx=10)
@@ -403,9 +409,9 @@ class OTAProberGUI:
         # Three columns: Build Tags | Key Types | Incremental Range
         mid = ttk.Frame(wrapper)
         mid.pack(fill=tk.X, pady=(0, 6))
-        mid.columnconfigure(0, weight=3)   # Build Tags
-        mid.columnconfigure(1, weight=2)   # Key Types
-        mid.columnconfigure(2, weight=1)   # Incremental Range
+        mid.columnconfigure(0, weight=3)
+        mid.columnconfigure(1, weight=2)
+        mid.columnconfigure(2, weight=1)
 
         # --- Build Tags (колонка 0) ---
         bt_lf = ttk.LabelFrame(mid, text="Build Tags  (one per line)", padding="6")
@@ -443,26 +449,18 @@ class OTAProberGUI:
         self.brute_skip_dupes_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(opt_lf, text="Skip duplicate OTA URLs",
                         variable=self.brute_skip_dupes_var).pack(side=tk.LEFT, padx=8)
+        self.brute_save_otas_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(opt_lf, text="Save OTAs.txt",
+                        variable=self.brute_save_otas_var).pack(side=tk.LEFT, padx=8)
         ttk.Label(opt_lf, text="Parallel workers:").pack(side=tk.LEFT, padx=(16, 4))
         self.brute_workers_var = tk.StringVar(value="10")
         ttk.Spinbox(opt_lf, from_=1, to=1000, textvariable=self.brute_workers_var, width=5).pack(side=tk.LEFT)
 
-        log_lf = ttk.LabelFrame(wrapper, text="Bruteforce Log", padding="4")
-        log_lf.pack(fill=tk.BOTH, expand=True)
-        self.brute_log = scrolledtext.ScrolledText(log_lf, wrap=tk.WORD, font=('Courier', 9), bg='white', fg='#333', height=12)
-        self.brute_log.pack(fill=tk.BOTH, expand=True)
-        self.brute_log.tag_configure('found', foreground='#006600', font=('Courier', 9, 'bold'))
-        self.brute_log.tag_configure('skip', foreground='#aaaaaa')
-        self.brute_log.tag_configure('error', foreground='#cc0000')
-        self.brute_log.tag_configure('header', foreground='#004499', font=('Courier', 9, 'bold'))
-        self.brute_log.tag_configure('info', foreground='#333333')
-        self.brute_log.tag_configure('changed', foreground='#cc6600', font=('Courier', 9, 'bold'))
-
         # Internal state
         self._brute_stop_flag = False
         self._brute_pause_event = threading.Event()
-        self._brute_found_data = {}          # унікальні OTA за URL
-        self._brute_found_count = 0          # загальна кількість знайдених ключів (з OTA)
+        self._brute_found_data = {}
+        self._brute_found_count = 0
         self._brute_queue = None
         self._brute_producer_thread = None
         self._brute_worker_threads = []
@@ -471,16 +469,66 @@ class OTAProberGUI:
         self._brute_total = 0
         self._brute_running = False
 
+        # Очищаємо буфер логу
+        self._brute_log_buffer = []
+
+    # ── Bruteforce log window ─────────────────────────────────────────────
+    def _open_brute_log_window(self):
+        if self._brute_log_window is not None and self._brute_log_window.winfo_exists():
+            self._brute_log_window.lift()
+            self._brute_log_window.focus_force()
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title("Bruteforce Log")
+        win.geometry("900x600")
+        win.protocol("WM_DELETE_WINDOW", self._close_brute_log_window)
+
+        frame = ttk.Frame(win, padding="10")
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        text = scrolledtext.ScrolledText(frame, wrap=tk.WORD, font=('Courier', 9), bg='white', fg='#333')
+        text.pack(fill=tk.BOTH, expand=True)
+
+        # Налаштування тегів (таких самих як у головному лозі)
+        text.tag_configure('found', foreground='#006600', font=('Courier', 9, 'bold'))
+        text.tag_configure('skip', foreground='#aaaaaa')
+        text.tag_configure('error', foreground='#cc0000')
+        text.tag_configure('header', foreground='#004499', font=('Courier', 9, 'bold'))
+        text.tag_configure('info', foreground='#333333')
+        text.tag_configure('changed', foreground='#cc6600', font=('Courier', 9, 'bold'))
+
+        # Вставляємо вже накопичений буфер
+        for line, tag in self._brute_log_buffer:
+            text.insert(tk.END, line + '\n', tag)
+        text.see(tk.END)
+
+        # Зберігаємо посилання
+        self._brute_log_window = win
+        self._brute_log_text = text
+
+    def _close_brute_log_window(self):
+        if self._brute_log_window:
+            self._brute_log_window.destroy()
+            self._brute_log_window = None
+            self._brute_log_text = None
+
     # ── Bruteforce log helpers ────────────────────────────────────────────
     def _brute_log(self, msg, tag='info'):
-        self.brute_log.insert(tk.END, msg + '\n', tag)
-        self.brute_log.see(tk.END)
-        self.root.update()
+        # Зберігаємо в буфер
+        self._brute_log_buffer.append((msg, tag))
+        # Якщо вікно відкрите – вставляємо
+        if self._brute_log_text and self._brute_log_window and self._brute_log_window.winfo_exists():
+            self._brute_log_text.insert(tk.END, msg + '\n', tag)
+            self._brute_log_text.see(tk.END)
 
     def _brute_clear_log(self):
-        """Clear only the log text, keep progress and found data."""
-        self.brute_log.delete(1.0, tk.END)
+        """Clear the log buffer and the log window if open."""
+        self._brute_log_buffer.clear()
+        if self._brute_log_text and self._brute_log_window and self._brute_log_window.winfo_exists():
+            self._brute_log_text.delete(1.0, tk.END)
 
+    # ── Bruteforce control ────────────────────────────────────────────────
     def _brute_pause(self):
         if not self._brute_running:
             return
@@ -500,32 +548,25 @@ class OTAProberGUI:
         self.brute_status_var.set("Resuming...")
 
     def _brute_stop(self):
-        """Full stop: kill all threads, allow restart."""
         if not self._brute_running:
             return
         self._brute_stop_flag = True
-        self._brute_pause_event.set()   # unblock any paused threads
+        self._brute_pause_event.set()
         self.brute_status_var.set("Stopping...")
         self.brute_stop_btn.config(state=tk.DISABLED)
         self.brute_pause_btn.config(state=tk.DISABLED)
         self.brute_continue_btn.config(state=tk.DISABLED)
-        # The monitor will detect termination and call _brute_finish(stop=True)
 
     def _brute_start(self):
-        # If already running, stop first (implicitly)
         if self._brute_running:
             self._brute_stop()
-            # Wait a bit for threads to finish
             time.sleep(0.2)
 
-        # Read template
         template = self.brute_fp_var.get().strip()
-        # Check which placeholders are present
         use_build = '{BUILD}' in template
         use_inc = '{INC}' in template
         use_key = '{KEY}' in template
 
-        # Read build tags
         raw_tags = self.brute_tags_text.get("1.0", tk.END).strip()
         build_tags = [t.strip() for t in raw_tags.splitlines() if t.strip()]
         if not build_tags:
@@ -534,7 +575,6 @@ class OTAProberGUI:
             else:
                 build_tags = [""]
 
-        # Read key types
         raw_keys = self.brute_keys_text.get("1.0", tk.END).strip()
         key_types = [k.strip() for k in raw_keys.splitlines() if k.strip()]
         if not key_types:
@@ -543,7 +583,6 @@ class OTAProberGUI:
             else:
                 key_types = [""]
 
-        # Read incremental range
         try:
             inc_start_str = self.brute_inc_start_var.get().strip()
             inc_end_str = self.brute_inc_end_var.get().strip()
@@ -559,7 +598,6 @@ class OTAProberGUI:
         except ValueError:
             inc_start, inc_end, inc_step = 0, 0, 1
 
-        # Compute total combinations based on used placeholders
         if use_inc:
             inc_count = (inc_end - inc_start) // inc_step + 1
         else:
@@ -570,7 +608,6 @@ class OTAProberGUI:
         if total == 0:
             total = 1
 
-        # Reset state
         self._brute_stop_flag = False
         self._brute_pause_event.set()
         self._brute_found_data.clear()
@@ -579,7 +616,7 @@ class OTAProberGUI:
         self._brute_total = total
 
         # Clear log
-        self.brute_log.delete(1.0, tk.END)
+        self._brute_clear_log()
 
         self.brute_start_btn.config(state=tk.DISABLED)
         self.brute_pause_btn.config(state=tk.NORMAL)
@@ -699,6 +736,7 @@ class OTAProberGUI:
     def _brute_process_result(self, fp, build_tag, key_type, inc, ota):
         skip_dupes = self.brute_skip_dupes_var.get()
         pause_on_find = self.brute_stop_on_find_var.get()
+        save_otas = self.brute_save_otas_var.get()
 
         if ota is None:
             self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → no OTA", 'skip')
@@ -713,11 +751,9 @@ class OTAProberGUI:
         size = ota.get('size', '')
         meta = (title, desc, size)
 
-        # Завжди збільшуємо загальний лічильник знайдених ключів
         with self._brute_progress_lock:
             self._brute_found_count += 1
 
-        # Перевірка дублікатів за URL
         with self._brute_progress_lock:
             old_meta = self._brute_found_data.get(url)
             is_new = old_meta is None
@@ -727,15 +763,12 @@ class OTAProberGUI:
             elif is_changed:
                 self._brute_found_data[url] = meta
             else:
-                # URL вже існує і метадані не змінилися – дублікат
-                # Але ми все одно покажемо повідомлення про знахідку (але не як нову)
                 if skip_dupes:
                     self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → OTA found (duplicate URL, skipped from unique)", 'found')
                 else:
                     self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → OTA found (duplicate URL, but metadata same)", 'found')
                 return
 
-        # Якщо це новий або оновлений запис
         if is_new:
             local_count = len(self._brute_found_data)
             self._brute_log(f"", 'found')
@@ -767,27 +800,28 @@ class OTAProberGUI:
                 self._brute_log(f"    Size (new)  : {size}", 'changed')
             self._brute_log(f"", 'changed')
 
-        # Зберігаємо в OTAs.txt
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            otas_path = os.path.join(script_dir, "OTAs.txt")
-            with open(otas_path, 'a', encoding='utf-8') as f:
-                f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
-                if is_changed:
-                    f.write(" [UPDATED]")
-                f.write("\n")
-                f.write(f"  Fingerprint : {fp}\n")
-                f.write(f"  URL         : {url}\n")
-                if title:
-                    f.write(f"  Title       : {title}\n")
-                if desc:
-                    f.write(f"  Description : {desc}\n")
-                if size:
-                    f.write(f"  Size        : {size}\n")
-                f.write("\n")
-            self._brute_log(f"    Saved to OTAs.txt", 'info')
-        except Exception as e:
-            self._brute_log(f"    Could not save to OTAs.txt: {e}", 'error')
+        # Зберігаємо в OTAs.txt тільки якщо ввімкнено
+        if save_otas:
+            try:
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                otas_path = os.path.join(script_dir, "OTAs.txt")
+                with open(otas_path, 'a', encoding='utf-8') as f:
+                    f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
+                    if is_changed:
+                        f.write(" [UPDATED]")
+                    f.write("\n")
+                    f.write(f"  Fingerprint : {fp}\n")
+                    f.write(f"  URL         : {url}\n")
+                    if title:
+                        f.write(f"  Title       : {title}\n")
+                    if desc:
+                        f.write(f"  Description : {desc}\n")
+                    if size:
+                        f.write(f"  Size        : {size}\n")
+                    f.write("\n")
+                self._brute_log(f"    Saved to OTAs.txt", 'info')
+            except Exception as e:
+                self._brute_log(f"    Could not save to OTAs.txt: {e}", 'error')
 
         if pause_on_find:
             self._brute_pause_event.clear()
