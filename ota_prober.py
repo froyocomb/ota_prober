@@ -9,7 +9,7 @@ import urllib.error
 import json
 import io
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox, filedialog
+from tkinter import ttk, scrolledtext, messagebox, filedialog, simpledialog
 import threading
 from datetime import datetime
 import webbrowser
@@ -41,6 +41,10 @@ class OTAProberGUI:
         self.query_thread = None
         self.keyscan_thread = None
 
+        # Assistant state
+        self.assistant_window = None
+        self.assistant_knowledge = self._load_knowledge()
+
     def setup_styles(self):
         style = ttk.Style()
         style.theme_use('clam')
@@ -55,7 +59,6 @@ class OTAProberGUI:
 
         title = ttk.Label(main_frame, text="Android OTA Prober", style='Title.TLabel')
         title.bind('<Button-1>', lambda e: messagebox.showinfo("RYuh", "hold on, im licking some bilds..."))
-        title.grid(row=0, column=0, columnspan=3, pady=(0, 20), sticky=tk.W)
         title.grid(row=0, column=0, columnspan=3, pady=(0, 20), sticky=tk.W)
 
         input_frame = ttk.LabelFrame(main_frame, text="Device Fingerprint", padding="10")
@@ -98,6 +101,10 @@ class OTAProberGUI:
 
         self.copy_button = ttk.Button(button_frame, text="Copy to Clipboard", command=self.on_copy_click)
         self.copy_button.pack(side=tk.LEFT, padx=5)
+
+        # Assistant toggle button
+        self.assistant_toggle_btn = ttk.Button(button_frame, text="📎 Assistant", command=self._toggle_assistant)
+        self.assistant_toggle_btn.pack(side=tk.LEFT, padx=5)
 
         self.status_var = tk.StringVar(value="Ready")
         self.status_label = ttk.Label(main_frame, textvariable=self.status_var, foreground='#0066cc', style='Normal.TLabel')
@@ -187,6 +194,276 @@ class OTAProberGUI:
         self.brute_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.brute_frame, text="Bruteforce")
         self._build_bruteforce_tab()
+
+        # Note: Assistant tab removed; now we have a floating window.
+
+    # ── Floating Assistant ──────────────────────────────────────────────────
+    def _load_knowledge(self):
+        """Load custom knowledge from JSON file."""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(script_dir, "assistant_knowledge.json")
+        if os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+
+    def _save_knowledge(self):
+        """Save custom knowledge to JSON file."""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(script_dir, "assistant_knowledge.json")
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(self.assistant_knowledge, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not save knowledge: {e}")
+
+    def _toggle_assistant(self):
+        if self.assistant_window is None or not self.assistant_window.winfo_exists():
+            self._create_assistant_window()
+        else:
+            # If window exists but is withdrawn, deiconify
+            if not self.assistant_window.winfo_viewable():
+                self.assistant_window.deiconify()
+            else:
+                self.assistant_window.lift()
+
+    def _create_assistant_window(self):
+        win = tk.Toplevel(self.root)
+        win.title("📎 OTA Prober Assistant")
+        win.geometry("420x520")
+        win.resizable(False, False)
+        win.attributes('-topmost', True)   # keep on top
+        win.protocol("WM_DELETE_WINDOW", self._hide_assistant)
+
+        # ---- Drag functionality ----
+        def start_drag(event):
+            win._drag_data = {'x': event.x_root - win.winfo_x(), 'y': event.y_root - win.winfo_y()}
+
+        def drag_move(event):
+            if hasattr(win, '_drag_data'):
+                x = event.x_root - win._drag_data['x']
+                y = event.y_root - win._drag_data['y']
+                win.geometry(f"+{x}+{y}")
+
+        # Title bar (draggable)
+        title_frame = ttk.Frame(win, relief='raised', borderwidth=1)
+        title_frame.pack(fill=tk.X, pady=(0, 4))
+        title_label = ttk.Label(title_frame, text="📎 Drag me", font=('Arial', 10, 'bold'), foreground='#0066cc')
+        title_label.pack(side=tk.LEFT, padx=8, pady=4)
+        # Close button
+        close_btn = ttk.Button(title_frame, text="✕", width=2, command=self._hide_assistant)
+        close_btn.pack(side=tk.RIGHT, padx=4, pady=2)
+
+        # Bind drag events to the title frame and label
+        for widget in (title_frame, title_label):
+            widget.bind('<Button-1>', start_drag)
+            widget.bind('<B1-Motion>', drag_move)
+
+        # Chat display
+        chat_display = scrolledtext.ScrolledText(
+            win,
+            wrap=tk.WORD,
+            height=20,
+            font=('Arial', 10),
+            bg='white',
+            fg='#333333'
+        )
+        chat_display.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 6))
+        chat_display.tag_configure('user', foreground='#0066cc', font=('Arial', 10, 'bold'))
+        chat_display.tag_configure('assistant', foreground='#006600', font=('Arial', 10))
+        chat_display.tag_configure('error', foreground='#cc0000')
+        chat_display.tag_configure('info', foreground='#666666', font=('Arial', 9, 'italic'))
+        chat_display.config(state=tk.DISABLED)
+
+        # Input frame
+        input_frame = ttk.Frame(win)
+        input_frame.pack(fill=tk.X, padx=6, pady=(0, 6))
+
+        self.assistant_input = ttk.Entry(input_frame, font=('Arial', 10))
+        self.assistant_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
+        self.assistant_input.bind('<Return>', lambda e: self._send_assistant_query(win, chat_display))
+
+        send_btn = ttk.Button(input_frame, text="Send", command=lambda: self._send_assistant_query(win, chat_display))
+        send_btn.pack(side=tk.LEFT, padx=2)
+
+        teach_btn = ttk.Button(input_frame, text="Teach", command=lambda: self._teach_assistant(win))
+        teach_btn.pack(side=tk.LEFT, padx=2)
+
+        clear_btn = ttk.Button(input_frame, text="Clear", command=lambda: self._clear_assistant_chat(chat_display))
+        clear_btn.pack(side=tk.LEFT, padx=2)
+
+        # Store references
+        win.chat_display = chat_display
+        win.assistant_input = self.assistant_input  # not needed, but we keep
+        self.assistant_window = win
+
+        # Initial greeting
+        self._add_assistant_message(chat_display,
+            "Hello! I'm your OTA Prober assistant. 📎\n"
+            "Ask me about fingerprint format, OTA checks, key scanning, bruteforce, HTTP info, or anything else.\n"
+            "You can teach me new Q&A using the 'Teach' button.")
+
+    def _hide_assistant(self):
+        if self.assistant_window and self.assistant_window.winfo_exists():
+            self.assistant_window.withdraw()
+
+    def _add_assistant_message(self, chat_display, msg, tag='assistant'):
+        chat_display.config(state=tk.NORMAL)
+        chat_display.insert(tk.END, "🤖 Assistant: ", 'assistant')
+        chat_display.insert(tk.END, msg + "\n\n", tag)
+        chat_display.see(tk.END)
+        chat_display.config(state=tk.DISABLED)
+
+    def _add_user_message(self, chat_display, msg):
+        chat_display.config(state=tk.NORMAL)
+        chat_display.insert(tk.END, "🧑 You: ", 'user')
+        chat_display.insert(tk.END, msg + "\n\n", 'user')
+        chat_display.see(tk.END)
+        chat_display.config(state=tk.DISABLED)
+
+    def _clear_assistant_chat(self, chat_display):
+        chat_display.config(state=tk.NORMAL)
+        chat_display.delete(1.0, tk.END)
+        chat_display.config(state=tk.DISABLED)
+        self._add_assistant_message(chat_display, "Chat cleared. How can I help you today?")
+
+    def _send_assistant_query(self, win, chat_display):
+        entry = win.assistant_input  # we stored as attribute
+        query = entry.get().strip()
+        if not query:
+            return
+        entry.delete(0, tk.END)
+        self._add_user_message(chat_display, query)
+        response = self._process_assistant_query(query)
+        self._add_assistant_message(chat_display, response)
+
+    def _teach_assistant(self, parent):
+        """Open a dialog to add a new keyword-response pair."""
+        dialog = tk.Toplevel(parent)
+        dialog.title("Teach Assistant")
+        dialog.geometry("400x250")
+        dialog.resizable(False, False)
+        dialog.attributes('-topmost', True)
+        dialog.grab_set()
+
+        ttk.Label(dialog, text="Enter a keyword or phrase (case-insensitive):", font=('Arial', 10)).pack(pady=(10, 0))
+        keyword_entry = ttk.Entry(dialog, font=('Arial', 10), width=50)
+        keyword_entry.pack(pady=5, padx=10)
+
+        ttk.Label(dialog, text="Enter the assistant's response:", font=('Arial', 10)).pack(pady=(10, 0))
+        response_text = scrolledtext.ScrolledText(dialog, height=4, font=('Arial', 10), wrap=tk.WORD)
+        response_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        def save_rule():
+            keyword = keyword_entry.get().strip().lower()
+            response = response_text.get("1.0", tk.END).strip()
+            if not keyword or not response:
+                messagebox.showwarning("Incomplete", "Both fields are required.")
+                return
+            self.assistant_knowledge[keyword] = response
+            self._save_knowledge()
+            messagebox.showinfo("Success", f"Added new rule for '{keyword}'")
+            dialog.destroy()
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=10)
+        ttk.Button(btn_frame, text="Save", command=save_rule).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+
+    def _process_assistant_query(self, query):
+        q = query.lower().strip()
+
+        # 1. Check custom knowledge (exact keyword match or substring)
+        for keyword, response in self.assistant_knowledge.items():
+            if keyword in q:
+                return response
+
+        # 2. Built-in rules
+        # Greetings
+        if any(word in q for word in ['hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening']):
+            return "Hello! I'm here to assist you with OTA Prober. What would you like to know? Try asking about fingerprint format, how to query a device, or what a keyscan does."
+
+        # Fingerprint format
+        if any(word in q for word in ['fingerprint', 'format', 'example', 'how to write', 'structure']):
+            return ("The fingerprint format is: "
+                    "`oem/product/device:api/build_tag/incremental:build_type/key_type`\n\n"
+                    "Example: `google/shamu/shamu:5.1/LYZ28E/1858530:user/release-keys`\n\n"
+                    "Breakdown:\n"
+                    "- `oem` – manufacturer (e.g., google)\n"
+                    "- `product` – product name (e.g., shamu)\n"
+                    "- `device` – device codename (e.g., shamu)\n"
+                    "- `api` – Android API level or version (e.g., 5.1)\n"
+                    "- `build_tag` – build ID (e.g., LYZ28E)\n"
+                    "- `incremental` – incremental version number (e.g., 1858530)\n"
+                    "- `build_type` – build type (e.g., user, userdebug, eng)\n"
+                    "- `key_type` – key type (e.g., release-keys, dev-keys, test-keys).")
+
+        # OTA / update / link
+        if any(word in q for word in ['ota', 'update', 'link', 'url', 'check for update']):
+            return ("OTA Prober sends a check-in request to Google's servers using the provided fingerprint.\n"
+                    "If an OTA update is available for that device/build, the response will contain an `update_url`.\n"
+                    "The tool displays that URL along with metadata like title, description, and file size.\n"
+                    "You can also use the **HTTP Info** tab to probe that URL for detailed headers and redirects.\n"
+                    "If no update is available, you'll see 'No Update Available'.")
+
+        # Key scan / keyscan
+        if any(word in q for word in ['keyscan', 'key scan', 'scan keys', 'key types']):
+            return ("The **Scan Key Types** feature takes your fingerprint base (everything before the last `:`) "
+                    "and tests multiple key type combinations (e.g., user/release-keys, userdebug/dev-keys, etc.) "
+                    "to see which ones yield an OTA link. This helps discover which signing keys work for a given device.\n"
+                    "It will show you all found OTA URLs with their titles and sizes.")
+
+        # Bruteforce
+        if any(word in q for word in ['bruteforce', 'brute force', 'brute', 'bulk']):
+            return ("The **Bruteforce** tab allows you to systematically try many fingerprints by varying build tags and incremental numbers.\n"
+                    "You provide a template with `{BUILD}` and `{INC}` placeholders, a list of build tags, and a range of incrementals.\n"
+                    "It will test each combination and log any OTA URLs found. You can pause, resume, or stop the process at any time.\n"
+                    "Results are also saved to `OTAs.txt` in the script directory.\n"
+                    "This is useful for discovering hidden or updated OTA packages.")
+
+        # HTTP Info
+        if any(word in q for word in ['http', 'header', 'redirect', 'fetch', 'probe url']):
+            return ("The **HTTP Info** tab lets you inspect an OTA URL in detail.\n"
+                    "It performs a HEAD request and shows:\n"
+                    "- General info (status, final URL, file size)\n"
+                    "- Response headers\n"
+                    "- Redirect chain\n"
+                    "- TLS/Security details (if HTTPS)\n"
+                    "- Timing (TCP handshake, TTFB, total time)\n"
+                    "You can paste any URL and click Fetch to get this information.")
+
+        # Raw response
+        if any(word in q for word in ['raw', 'protobuf', 'binary', 'hex']):
+            return ("The **Raw Response** tab displays the raw protobuf response from the check-in server.\n"
+                    "You can toggle between a human-readable field tree and a hex dump.\n"
+                    "This is useful for advanced users who want to inspect the exact data returned by Google's servers.\n"
+                    "You can also save either view to a text file.")
+
+        # General help / what is this
+        if any(word in q for word in ['help', 'what', 'purpose', 'use', 'usage', 'guide']):
+            return ("OTA Prober is a tool for checking Android OTA (Over‑the‑Air) update availability "
+                    "given a device fingerprint. It emulates the check-in process used by Android devices.\n\n"
+                    "Main features:\n"
+                    "1. **Query Device** – send a fingerprint and see if an OTA is available.\n"
+                    "2. **Scan Key Types** – try multiple key types to find working ones.\n"
+                    "3. **Bruteforce** – bulk test many build/incremental combinations.\n"
+                    "4. **HTTP Info** – inspect OTA URL details.\n"
+                    "5. **Raw Response** – view the protobuf data.\n\n"
+                    "You can also output results as JSON and save them to a file.\n"
+                    "If you need more help, just ask me a specific question!")
+
+        # Goodbye
+        if any(word in q for word in ['bye', 'goodbye', 'see you', 'quit', 'exit']):
+            return "Goodbye! If you need me again, just click the Assistant button. Happy probing! 📎"
+
+        # Default
+        return ("I'm not sure I understand. Could you rephrase your question?\n"
+                "I can help with topics like fingerprint format, OTA checking, key scanning, bruteforce, HTTP info, and raw responses.\n"
+                "For example, try asking: 'How do I format a fingerprint?' or 'What is bruteforce used for?'\n"
+                "You can also teach me new Q&A using the 'Teach' button.")
 
     # ── Raw Response tab ───────────────────────────────────────────────────
     def _build_raw_tab(self):
