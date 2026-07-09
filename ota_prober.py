@@ -56,7 +56,6 @@ class OTAProberGUI:
         title = ttk.Label(main_frame, text="Android OTA Prober", style='Title.TLabel')
         title.bind('<Button-1>', lambda e: messagebox.showinfo("RYuh", "hold on, im licking some bilds..."))
         title.grid(row=0, column=0, columnspan=3, pady=(0, 20), sticky=tk.W)
-        title.grid(row=0, column=0, columnspan=3, pady=(0, 20), sticky=tk.W)
 
         input_frame = ttk.LabelFrame(main_frame, text="Device Fingerprint", padding="10")
         input_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
@@ -393,25 +392,39 @@ class OTAProberGUI:
 
         fp_lf = ttk.LabelFrame(wrapper, text="Fingerprint Template", padding="6")
         fp_lf.pack(fill=tk.X, pady=(0, 6))
-        ttk.Label(fp_lf, text="Use {BUILD} and {INC} as placeholders:").pack(anchor=tk.W)
-        self.brute_fp_var = tk.StringVar(value="google/tungsten/phantasm:4.0.4/{BUILD}/{INC}:user/release-keys")
+        ttk.Label(fp_lf, text="Use {BUILD}, {INC} and {KEY} as placeholders:").pack(anchor=tk.W)
+        self.brute_fp_var = tk.StringVar(
+            value="google/tungsten/phantasm:4.0.4/{BUILD}/{INC}:{KEY}"
+        )
         ttk.Entry(fp_lf, textvariable=self.brute_fp_var, font=('Courier', 9)).pack(fill=tk.X, pady=3)
-        ttk.Label(fp_lf, text="{BUILD} = build ID   {INC} = incremental number",
+        ttk.Label(fp_lf, text="{BUILD} = build ID   {INC} = incremental   {KEY} = key type",
                   foreground='#666666').pack(anchor=tk.W)
 
+        # Three columns: Build Tags | Key Types | Incremental Range
         mid = ttk.Frame(wrapper)
         mid.pack(fill=tk.X, pady=(0, 6))
-        mid.columnconfigure(0, weight=3)
-        mid.columnconfigure(1, weight=1)
+        mid.columnconfigure(0, weight=3)   # Build Tags
+        mid.columnconfigure(1, weight=2)   # Key Types
+        mid.columnconfigure(2, weight=1)   # Incremental Range
 
+        # --- Build Tags (колонка 0) ---
         bt_lf = ttk.LabelFrame(mid, text="Build Tags  (one per line)", padding="6")
         bt_lf.grid(row=0, column=0, sticky=tk.NSEW, padx=(0, 6))
         self.brute_tags_text = tk.Text(bt_lf, height=4, font=('Courier', 9))
         self.brute_tags_text.pack(fill=tk.BOTH, expand=True)
         self.brute_tags_text.insert(tk.END, "IAN67H")
 
+        # --- Key Types (колонка 1) ---
+        kt_lf = ttk.LabelFrame(mid, text="Key Types  (one per line)", padding="6")
+        kt_lf.grid(row=0, column=1, sticky=tk.NSEW, padx=(0, 6))
+        self.brute_keys_text = tk.Text(kt_lf, height=4, font=('Courier', 9))
+        self.brute_keys_text.pack(fill=tk.BOTH, expand=True)
+        self.brute_keys_text.insert(tk.END,
+            "user/release-keys\nuserdebug/release-keys\neng/release-keys")
+
+        # --- Incremental Range (колонка 2) ---
         inc_lf = ttk.LabelFrame(mid, text="Incremental Range", padding="6")
-        inc_lf.grid(row=0, column=1, sticky=tk.NSEW)
+        inc_lf.grid(row=0, column=2, sticky=tk.NSEW)
         inc_lf.columnconfigure(1, weight=1)
         self.brute_inc_start_var = tk.StringVar(value="370000")
         self.brute_inc_end_var = tk.StringVar(value="400000")
@@ -509,6 +522,13 @@ class OTAProberGUI:
         if not build_tags:
             messagebox.showerror("Bruteforce Error", "No build tags provided.")
             return
+
+        raw_keys = self.brute_keys_text.get("1.0", tk.END).strip()
+        key_types = [k.strip() for k in raw_keys.splitlines() if k.strip()]
+        if not key_types:
+            messagebox.showerror("Bruteforce Error", "No key types provided.")
+            return
+
         try:
             inc_start = int(self.brute_inc_start_var.get().strip())
             inc_end = int(self.brute_inc_end_var.get().strip())
@@ -518,11 +538,14 @@ class OTAProberGUI:
         except ValueError:
             messagebox.showerror("Bruteforce Error", "Incremental values must be integers.")
             return
-        total = len(build_tags) * ((inc_end - inc_start) // inc_step + 1)
+
+        total = (len(build_tags) * len(key_types) *
+                 ((inc_end - inc_start) // inc_step + 1))
 
         template = self.brute_fp_var.get().strip()
-        if '{BUILD}' not in template and '{INC}' not in template:
-            messagebox.showwarning("Warning", "Template has neither {BUILD} nor {INC} — every request will be identical.")
+        if not any(p in template for p in ('{BUILD}', '{INC}', '{KEY}')):
+            messagebox.showwarning("Warning",
+                "Template has none of {BUILD}, {INC}, {KEY} — every request will be identical.")
 
         # Reset state
         self._brute_stop_flag = False
@@ -554,7 +577,7 @@ class OTAProberGUI:
 
         self._brute_producer_thread = threading.Thread(
             target=self._brute_producer,
-            args=(build_tags, inc_start, inc_end, inc_step, template, n_workers),
+            args=(build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers),
             daemon=True
         )
         self._brute_producer_thread.start()
@@ -568,13 +591,16 @@ class OTAProberGUI:
         self._brute_running = True
         self.root.after(500, self._brute_monitor)
 
-    def _brute_producer(self, build_tags, inc_start, inc_end, inc_step, template, n_workers):
+    def _brute_producer(self, build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers):
         try:
-            for bt in build_tags:
-                for inc in range(inc_start, inc_end + 1, inc_step):
+            for bt in build_tags:                      # зовнішній – build_tag
+                for inc in range(inc_start, inc_end + 1, inc_step):   # середній – incremental
+                    for kt in key_types:               # внутрішній – key_type
+                        if self._brute_stop_flag:
+                            break
+                        self._brute_queue.put((bt, kt, str(inc), template), block=True)
                     if self._brute_stop_flag:
                         break
-                    self._brute_queue.put((bt, str(inc), template), block=True)
                 if self._brute_stop_flag:
                     break
         finally:
@@ -592,8 +618,8 @@ class OTAProberGUI:
                 continue
             if item is None:
                 break
-            build_tag, inc, template = item
-            fp = template.replace('{BUILD}', build_tag).replace('{INC}', inc)
+            build_tag, key_type, inc, template = item
+            fp = template.replace('{BUILD}', build_tag).replace('{INC}', inc).replace('{KEY}', key_type)
 
             max_retries = 3
             for attempt in range(max_retries):
@@ -606,18 +632,18 @@ class OTAProberGUI:
                     settings, _raw = perform_checkin(fp)
                     if not settings:
                         if attempt == max_retries - 1:
-                            self._brute_log(f"  BUILD={build_tag} INC={inc} → no response (after {max_retries} retries)", 'skip')
+                            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → no response (after {max_retries} retries)", 'skip')
                             self._brute_increment_progress()
                         else:
                             time.sleep(1)
                         continue
                     ota = find_ota_link(settings)
-                    self._brute_process_result(fp, build_tag, inc, ota)
+                    self._brute_process_result(fp, build_tag, key_type, inc, ota)
                     self._brute_increment_progress()
                     break
                 except Exception as e:
                     if attempt == max_retries - 1:
-                        self._brute_log(f"  BUILD={build_tag} INC={inc} → ERROR: {e} (after {max_retries} retries)", 'error')
+                        self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → ERROR: {e} (after {max_retries} retries)", 'error')
                         self._brute_increment_progress()
                     else:
                         time.sleep(1)
@@ -631,16 +657,16 @@ class OTAProberGUI:
                 f"found={len(self._brute_found_data)}"
             )
 
-    def _brute_process_result(self, fp, build_tag, inc, ota):
+    def _brute_process_result(self, fp, build_tag, key_type, inc, ota):
         skip_dupes = self.brute_skip_dupes_var.get()
         pause_on_find = self.brute_stop_on_find_var.get()
 
         if ota is None:
-            self._brute_log(f"  BUILD={build_tag} INC={inc} → no OTA", 'skip')
+            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → no OTA", 'skip')
             return
         url = ota.get('url')
         if not url:
-            self._brute_log(f"  BUILD={build_tag} INC={inc} → no OTA URL", 'skip')
+            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → no OTA URL", 'skip')
             return
 
         title = ota.get('title', '')
@@ -658,15 +684,15 @@ class OTAProberGUI:
                 self._brute_found_data[url] = meta
             else:
                 if skip_dupes:
-                    self._brute_log(f"  BUILD={build_tag} INC={inc} → duplicate (skipped)", 'skip')
+                    self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → duplicate (skipped)", 'skip')
                 else:
-                    self._brute_log(f"  BUILD={build_tag} INC={inc} → duplicate (metadata same)", 'skip')
+                    self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → duplicate (metadata same)", 'skip')
                 return
 
         if is_new:
             local_count = len(self._brute_found_data)
             self._brute_log(f"", 'found')
-            self._brute_log(f"  ★ FOUND #{local_count}  BUILD={build_tag}  INC={inc}", 'found')
+            self._brute_log(f"  ★ FOUND #{local_count}  BUILD={build_tag}  KEY={key_type}  INC={inc}", 'found')
             self._brute_log(f"    Fingerprint : {fp}", 'found')
             self._brute_log(f"    URL         : {url}", 'found')
             if title:
@@ -680,7 +706,7 @@ class OTAProberGUI:
             old_title, old_desc, old_size = old_meta
             local_count = len(self._brute_found_data)
             self._brute_log(f"", 'changed')
-            self._brute_log(f"  ⚡ UPDATED #{local_count}  BUILD={build_tag}  INC={inc}", 'changed')
+            self._brute_log(f"  ⚡ UPDATED #{local_count}  BUILD={build_tag}  KEY={key_type}  INC={inc}", 'changed')
             self._brute_log(f"    Fingerprint : {fp}", 'changed')
             self._brute_log(f"    URL         : {url}", 'changed')
             if old_title != title:
