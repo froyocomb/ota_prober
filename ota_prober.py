@@ -422,7 +422,7 @@ class OTAProberGUI:
         bt_lf.grid(row=0, column=0, sticky=tk.NSEW, padx=(0, 6))
         self.brute_tags_text = tk.Text(bt_lf, height=4, font=('Courier', 9))
         self.brute_tags_text.pack(fill=tk.BOTH, expand=True)
-        self.brute_tags_text.insert(tk.END, "IAN67H\nIAN66H\nIAN65H\nIAN68H")
+        self.brute_tags_text.insert(tk.END, "IAN67H")
 
         inc_lf = ttk.LabelFrame(mid, text="Incremental Range", padding="6")
         inc_lf.grid(row=0, column=1, sticky=tk.NSEW)
@@ -1044,6 +1044,8 @@ class OTAProberGUI:
 
             key_types = [
                 "user/release-keys",
+                "userdebug/release-keys",
+                "eng/release-keys",
                 "user/dev-keys",
                 "user/test-keys",
                 "userdebug/dev-keys",
