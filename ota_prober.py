@@ -394,7 +394,7 @@ class OTAProberGUI:
         fp_lf.pack(fill=tk.X, pady=(0, 6))
         ttk.Label(fp_lf, text="Use {BUILD}, {INC} and {KEY} as placeholders:").pack(anchor=tk.W)
         self.brute_fp_var = tk.StringVar(
-            value="google/tungsten/phantasm:4.0.4/{BUILD}/{INC}:{KEY}"
+            value="google/baracus/baracus:6.0/{BUILD}/{INC}:{KEY}"
         )
         ttk.Entry(fp_lf, textvariable=self.brute_fp_var, font=('Courier', 9)).pack(fill=tk.X, pady=3)
         ttk.Label(fp_lf, text="{BUILD} = build ID   {INC} = incremental   {KEY} = key type",
@@ -412,7 +412,7 @@ class OTAProberGUI:
         bt_lf.grid(row=0, column=0, sticky=tk.NSEW, padx=(0, 6))
         self.brute_tags_text = tk.Text(bt_lf, height=4, font=('Courier', 9))
         self.brute_tags_text.pack(fill=tk.BOTH, expand=True)
-        self.brute_tags_text.insert(tk.END, "IAN67H")
+        self.brute_tags_text.insert(tk.END, "MRTA.181211.008")
 
         # --- Key Types (колонка 1) ---
         kt_lf = ttk.LabelFrame(mid, text="Key Types  (one per line)", padding="6")
@@ -420,7 +420,7 @@ class OTAProberGUI:
         self.brute_keys_text = tk.Text(kt_lf, height=4, font=('Courier', 9))
         self.brute_keys_text.pack(fill=tk.BOTH, expand=True)
         self.brute_keys_text.insert(tk.END,
-            "user/release-keys\nuserdebug/release-keys\neng/release-keys")
+            "user/release-keys\nuser/test-keys")
 
         # --- Incremental Range (колонка 2) ---
         inc_lf = ttk.LabelFrame(mid, text="Incremental Range", padding="6")
@@ -461,7 +461,8 @@ class OTAProberGUI:
         # Internal state
         self._brute_stop_flag = False
         self._brute_pause_event = threading.Event()
-        self._brute_found_data = {}
+        self._brute_found_data = {}          # унікальні OTA за URL
+        self._brute_found_count = 0          # загальна кількість знайдених ключів (з OTA)
         self._brute_queue = None
         self._brute_producer_thread = None
         self._brute_worker_threads = []
@@ -517,44 +518,67 @@ class OTAProberGUI:
             # Wait a bit for threads to finish
             time.sleep(0.2)
 
+        # Read template
+        template = self.brute_fp_var.get().strip()
+        # Check which placeholders are present
+        use_build = '{BUILD}' in template
+        use_inc = '{INC}' in template
+        use_key = '{KEY}' in template
+
+        # Read build tags
         raw_tags = self.brute_tags_text.get("1.0", tk.END).strip()
         build_tags = [t.strip() for t in raw_tags.splitlines() if t.strip()]
         if not build_tags:
-            messagebox.showerror("Bruteforce Error", "No build tags provided.")
-            return
+            if use_build:
+                build_tags = ["DEFAULT"]
+            else:
+                build_tags = [""]
 
+        # Read key types
         raw_keys = self.brute_keys_text.get("1.0", tk.END).strip()
         key_types = [k.strip() for k in raw_keys.splitlines() if k.strip()]
         if not key_types:
-            messagebox.showerror("Bruteforce Error", "No key types provided.")
-            return
+            if use_key:
+                key_types = ["user/release-keys"]
+            else:
+                key_types = [""]
 
+        # Read incremental range
         try:
-            inc_start = int(self.brute_inc_start_var.get().strip())
-            inc_end = int(self.brute_inc_end_var.get().strip())
-            inc_step = int(self.brute_inc_step_var.get().strip())
-            if inc_step <= 0:
-                inc_step = 1
+            inc_start_str = self.brute_inc_start_var.get().strip()
+            inc_end_str = self.brute_inc_end_var.get().strip()
+            inc_step_str = self.brute_inc_step_var.get().strip()
+            if inc_start_str and inc_end_str and use_inc:
+                inc_start = int(inc_start_str)
+                inc_end = int(inc_end_str)
+                inc_step = int(inc_step_str) if inc_step_str else 1
+                if inc_step <= 0:
+                    inc_step = 1
+            else:
+                inc_start, inc_end, inc_step = 0, 0, 1
         except ValueError:
-            messagebox.showerror("Bruteforce Error", "Incremental values must be integers.")
-            return
+            inc_start, inc_end, inc_step = 0, 0, 1
 
-        total = (len(build_tags) * len(key_types) *
-                 ((inc_end - inc_start) // inc_step + 1))
-
-        template = self.brute_fp_var.get().strip()
-        if not any(p in template for p in ('{BUILD}', '{INC}', '{KEY}')):
-            messagebox.showwarning("Warning",
-                "Template has none of {BUILD}, {INC}, {KEY} — every request will be identical.")
+        # Compute total combinations based on used placeholders
+        if use_inc:
+            inc_count = (inc_end - inc_start) // inc_step + 1
+        else:
+            inc_count = 1
+        build_count = len(build_tags) if use_build else 1
+        key_count = len(key_types) if use_key else 1
+        total = build_count * key_count * inc_count
+        if total == 0:
+            total = 1
 
         # Reset state
         self._brute_stop_flag = False
         self._brute_pause_event.set()
         self._brute_found_data.clear()
+        self._brute_found_count = 0
         self._brute_processed = 0
         self._brute_total = total
 
-        # Clear log (to avoid confusion)
+        # Clear log
         self.brute_log.delete(1.0, tk.END)
 
         self.brute_start_btn.config(state=tk.DISABLED)
@@ -577,7 +601,8 @@ class OTAProberGUI:
 
         self._brute_producer_thread = threading.Thread(
             target=self._brute_producer,
-            args=(build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers),
+            args=(build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers,
+                  use_build, use_inc, use_key),
             daemon=True
         )
         self._brute_producer_thread.start()
@@ -591,14 +616,22 @@ class OTAProberGUI:
         self._brute_running = True
         self.root.after(500, self._brute_monitor)
 
-    def _brute_producer(self, build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers):
+    def _brute_producer(self, build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers,
+                        use_build, use_inc, use_key):
         try:
-            for bt in build_tags:                      # зовнішній – build_tag
-                for inc in range(inc_start, inc_end + 1, inc_step):   # середній – incremental
-                    for kt in key_types:               # внутрішній – key_type
+            builds = build_tags if use_build else [""]
+            keys = key_types if use_key else [""]
+            if use_inc:
+                inc_values = range(inc_start, inc_end + 1, inc_step)
+            else:
+                inc_values = [0]
+
+            for bt in builds:
+                for inc in inc_values:
+                    for kt in keys:
                         if self._brute_stop_flag:
                             break
-                        self._brute_queue.put((bt, kt, str(inc), template), block=True)
+                        self._brute_queue.put((bt, kt, str(inc) if use_inc else "", template), block=True)
                     if self._brute_stop_flag:
                         break
                 if self._brute_stop_flag:
@@ -619,7 +652,13 @@ class OTAProberGUI:
             if item is None:
                 break
             build_tag, key_type, inc, template = item
-            fp = template.replace('{BUILD}', build_tag).replace('{INC}', inc).replace('{KEY}', key_type)
+            fp = template
+            if '{BUILD}' in template:
+                fp = fp.replace('{BUILD}', build_tag)
+            if '{INC}' in template:
+                fp = fp.replace('{INC}', inc)
+            if '{KEY}' in template:
+                fp = fp.replace('{KEY}', key_type)
 
             max_retries = 3
             for attempt in range(max_retries):
@@ -654,7 +693,7 @@ class OTAProberGUI:
             self.brute_progress['value'] = self._brute_processed
             self.brute_status_var.set(
                 f"[{self._brute_processed}/{self._brute_total}]  "
-                f"found={len(self._brute_found_data)}"
+                f"found={self._brute_found_count} keys, unique={len(self._brute_found_data)}"
             )
 
     def _brute_process_result(self, fp, build_tag, key_type, inc, ota):
@@ -674,6 +713,11 @@ class OTAProberGUI:
         size = ota.get('size', '')
         meta = (title, desc, size)
 
+        # Завжди збільшуємо загальний лічильник знайдених ключів
+        with self._brute_progress_lock:
+            self._brute_found_count += 1
+
+        # Перевірка дублікатів за URL
         with self._brute_progress_lock:
             old_meta = self._brute_found_data.get(url)
             is_new = old_meta is None
@@ -683,16 +727,19 @@ class OTAProberGUI:
             elif is_changed:
                 self._brute_found_data[url] = meta
             else:
+                # URL вже існує і метадані не змінилися – дублікат
+                # Але ми все одно покажемо повідомлення про знахідку (але не як нову)
                 if skip_dupes:
-                    self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → duplicate (skipped)", 'skip')
+                    self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → OTA found (duplicate URL, skipped from unique)", 'found')
                 else:
-                    self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → duplicate (metadata same)", 'skip')
+                    self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → OTA found (duplicate URL, but metadata same)", 'found')
                 return
 
+        # Якщо це новий або оновлений запис
         if is_new:
             local_count = len(self._brute_found_data)
             self._brute_log(f"", 'found')
-            self._brute_log(f"  ★ FOUND #{local_count}  BUILD={build_tag}  KEY={key_type}  INC={inc}", 'found')
+            self._brute_log(f"  ★ NEW #{local_count}  BUILD={build_tag}  KEY={key_type}  INC={inc}", 'found')
             self._brute_log(f"    Fingerprint : {fp}", 'found')
             self._brute_log(f"    URL         : {url}", 'found')
             if title:
@@ -720,6 +767,7 @@ class OTAProberGUI:
                 self._brute_log(f"    Size (new)  : {size}", 'changed')
             self._brute_log(f"", 'changed')
 
+        # Зберігаємо в OTAs.txt
         try:
             script_dir = os.path.dirname(os.path.abspath(__file__))
             otas_path = os.path.join(script_dir, "OTAs.txt")
@@ -750,7 +798,6 @@ class OTAProberGUI:
 
     def _brute_monitor(self):
         if self._brute_stop_flag:
-            # If stop was requested, force termination
             self._brute_finish(stop=True)
             return
         if self._brute_producer_thread and self._brute_producer_thread.is_alive():
@@ -769,8 +816,8 @@ class OTAProberGUI:
             self.brute_status_var.set("Stopped by user.")
         else:
             self._brute_log("=" * 70, 'header')
-            self._brute_log(f"Bruteforce finished. Found {len(self._brute_found_data)} unique OTA(s) (including metadata changes).", 'header')
-            self.brute_status_var.set(f"Done — {len(self._brute_found_data)} unique OTA(s) found.")
+            self._brute_log(f"Bruteforce finished. Found {self._brute_found_count} OTA(s) for different keys, unique URLs: {len(self._brute_found_data)}.", 'header')
+            self.brute_status_var.set(f"Done — {self._brute_found_count} keys with OTA, {len(self._brute_found_data)} unique.")
         self.brute_start_btn.config(state=tk.NORMAL)
         self.brute_pause_btn.config(state=tk.DISABLED)
         self.brute_continue_btn.config(state=tk.DISABLED)
