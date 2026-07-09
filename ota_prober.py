@@ -70,7 +70,7 @@ class OTAProberGUI:
         self.fingerprint_var = tk.StringVar()
         self.fingerprint_entry = ttk.Entry(input_frame, textvariable=self.fingerprint_var, width=70, font=('Courier', 10))
         self.fingerprint_entry.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
-        self.fingerprint_entry.insert(0, "google/baracus/baracus:6.0/MRTA.181211.008/5216713:user/release-keys")
+        self.fingerprint_entry.insert(0, "google/shamu/shamu:5.1/LYZ28E/1858530:user/release-keys")
 
         ttk.Label(input_frame, text="Format: oem/product/device:api/build_tag/incremental:build_type/key_type",
                   style='Normal.TLabel', foreground='#666666').grid(row=2, column=0, sticky=tk.W)
