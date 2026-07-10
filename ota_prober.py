@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# GOTA Prober, held under The MIT License, Copyright 2026 Lucas Puntillo
+
+# Bruteforce additions added by @RYuhMine! Thank you!
+
 import sys
 import os
 import gzip
