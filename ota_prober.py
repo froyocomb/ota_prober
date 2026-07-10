@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 # GOTA Prober, held under The MIT License, Copyright 2026 Lucas Puntillo
-
 # Bruteforce additions added by @RYuhMine! Thank you!
 
 import sys
@@ -32,12 +31,46 @@ except ImportError:
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+# ── Locale → Timezone mapping ────────────────────────────────────────────
+LOCALE_TZ_MAP = {
+    'en-US': 'America/New_York',
+    'uk-UA': 'Europe/Kiev',
+    'ru-RU': 'Europe/Moscow',
+    'de-DE': 'Europe/Berlin',
+    'fr-FR': 'Europe/Paris',
+    'es-ES': 'Europe/Madrid',
+    'it-IT': 'Europe/Rome',
+    'ja-JP': 'Asia/Tokyo',
+    'zh-CN': 'Asia/Shanghai',
+    'ar-SA': 'Asia/Riyadh',
+    'pt-BR': 'America/Sao_Paulo',
+    'pl-PL': 'Europe/Warsaw',
+    'nl-NL': 'Europe/Amsterdam',
+    'sv-SE': 'Europe/Stockholm',
+    'tr-TR': 'Europe/Istanbul',
+    'cs-CZ': 'Europe/Prague',
+    'el-GR': 'Europe/Athens',
+    'he-IL': 'Asia/Jerusalem',
+    'hi-IN': 'Asia/Kolkata',
+    'id-ID': 'Asia/Jakarta',
+    'ko-KR': 'Asia/Seoul',
+    'ms-MY': 'Asia/Kuala_Lumpur',
+    'th-TH': 'Asia/Bangkok',
+    'vi-VN': 'Asia/Ho_Chi_Minh',
+    'en-GB': 'Europe/London',
+    'en-AU': 'Australia/Sydney',
+    'en-CA': 'America/Toronto',
+    'fr-CA': 'America/Montreal',
+    'es-MX': 'America/Mexico_City',
+    'pt-PT': 'Europe/Lisbon',
+}
+EXTRA_TZ = ['UTC', 'America/Los_Angeles', 'America/Chicago', 'America/Denver', 'Europe/London', 'Europe/Kiev', 'Europe/Moscow']
 
 class OTAProberGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("OTA Prober")
-        self.root.geometry("1000x900")
+        self.root.geometry("1000x950")
         self.root.configure(bg='#f0f0f0')
 
         self.setup_styles()
@@ -52,19 +85,13 @@ class OTAProberGUI:
         self._brute_log_window = None
         self._brute_log_text = None
 
+        # Підписка на зміну вкладки для приховування параметрів
+        self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
+
     def _setup_layout_independent_shortcuts(self):
         """
         Робить Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+A робочими незалежно від
         поточної розкладки клавіатури (укр., рос., будь-яка інша).
-
-        Стандартні tkinter-біндинги спрацьовують по keysym (символу),
-        а символ 'c' існує лише в латинській розкладці, тому Control-c
-        не збігається, коли розкладка не англійська.
-
-        Тут натомість перевіряємо event.char: коли затиснутий Ctrl,
-        ОС генерує ASCII control-char (Ctrl+C -> '\\x03', Ctrl+V -> '\\x16',
-        Ctrl+X -> '\\x18', Ctrl+A -> '\\x01') незалежно від розкладки,
-        бо це визначається позицією клавіші, а не її символом.
         """
         CTRL_CHARS = {
             'copy':  '\x03',
@@ -178,17 +205,9 @@ class OTAProberGUI:
             if matches(event, 'all'):
                 return do_select_all(event)
             # Якщо це Ctrl-комбінація, яку ми обробляємо на bind_class
-            # (Control-c/v/x/a), але matches() з якоїсь причини не спрацював -
-            # все одно гасимо подію, щоб не було подвійної обробки.
             if event.state & 0x4 and event.keysym.lower() in ('c', 'v', 'x', 'a'):
                 return "break"
 
-        # Прив'язуємо нашу логіку НАПРЯМУ на рівні класів (Entry/Text/...),
-        # а не через bind_all: bindtags виконуються в порядку
-        # widget -> class -> toplevel -> all, тому bind_class спрацьовує
-        # РАНІШЕ за bind_all і повністю замінює стандартну class-поведінку
-        # copy/paste/cut/selectall для будь-якого keysym, включно з
-        # англійськими (c/v/x/a) та будь-якими іншими.
         for widget_class in ('Entry', 'Text', 'TEntry', 'TCombobox'):
             self.root.bind_class(widget_class, '<Control-c>', on_key)
             self.root.bind_class(widget_class, '<Control-C>', on_key)
@@ -199,8 +218,6 @@ class OTAProberGUI:
             self.root.bind_class(widget_class, '<Control-a>', on_key)
             self.root.bind_class(widget_class, '<Control-A>', on_key)
 
-        # bind_all ловить <Key> для НЕанглійських розкладок, де keysym
-        # не 'c'/'v'/'x'/'a' і клас-біндинги вище не спрацьовують.
         self.root.bind_all('<Key>', on_key)
 
     def setup_styles(self):
@@ -219,6 +236,7 @@ class OTAProberGUI:
         title.bind('<Button-1>', lambda e: messagebox.showinfo("RYuh", "hold on, im licking some bilds..."))
         title.grid(row=0, column=0, columnspan=3, pady=(0, 20), sticky=tk.W)
 
+        # ── Input Fingerprint ──────────────────────────────────────────────
         input_frame = ttk.LabelFrame(main_frame, text="Device Fingerprint", padding="10")
         input_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
 
@@ -234,8 +252,30 @@ class OTAProberGUI:
 
         input_frame.columnconfigure(0, weight=1)
 
+        # ── Request Parameters (Locale & Timezone) ──────────────────────
+        self.params_frame = ttk.LabelFrame(main_frame, text="Request Parameters", padding="10")
+        self.params_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+
+        ttk.Label(self.params_frame, text="Locale:", style='Normal.TLabel').grid(row=0, column=0, sticky=tk.W, padx=5)
+        self.locale_var = tk.StringVar(value="en-US")
+        self.locale_combo = ttk.Combobox(self.params_frame, textvariable=self.locale_var, width=20)
+        locale_list = sorted(LOCALE_TZ_MAP.keys())
+        self.locale_combo['values'] = locale_list
+        self.locale_combo.grid(row=0, column=1, sticky=tk.W, padx=5)
+        self.locale_combo.bind('<<ComboboxSelected>>', self._on_locale_selected)
+        self.locale_combo.bind('<KeyRelease>', self._on_locale_typed)
+
+        ttk.Label(self.params_frame, text="Timezone:", style='Normal.TLabel').grid(row=0, column=2, sticky=tk.W, padx=5)
+        self.timezone_var = tk.StringVar(value="America/New_York")
+        tz_combo = ttk.Combobox(self.params_frame, textvariable=self.timezone_var, width=24)
+        tz_combo['values'] = sorted(set(LOCALE_TZ_MAP.values()) | set(EXTRA_TZ))
+        tz_combo.grid(row=0, column=3, sticky=tk.W, padx=5)
+
+        ttk.Button(self.params_frame, text="Set Default", command=self.reset_params).grid(row=0, column=4, padx=10)
+
+        # ── Options ────────────────────────────────────────────────────────
         options_frame = ttk.LabelFrame(main_frame, text="Options", padding="10")
-        options_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        options_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
 
         self.json_var = tk.BooleanVar(value=False)
         self.json_check = ttk.Checkbutton(options_frame, text="Output as JSON", variable=self.json_var)
@@ -245,8 +285,15 @@ class OTAProberGUI:
         self.save_check = ttk.Checkbutton(options_frame, text="Save to file", variable=self.save_var)
         self.save_check.grid(row=0, column=1, sticky=tk.W, padx=5)
 
+        # ── Scan Locales (для сканування ключів) ─────────────────────────
+        ttk.Label(options_frame, text="Scan Locales (comma/space separated):", style='Normal.TLabel').grid(row=0, column=2, sticky=tk.W, padx=(20,5))
+        self.scan_locales_var = tk.StringVar(value="en-US,uk-UA,ru-RU")
+        scan_locales_entry = ttk.Entry(options_frame, textvariable=self.scan_locales_var, width=30)
+        scan_locales_entry.grid(row=0, column=3, sticky=tk.W, padx=5)
+
+        # ── Buttons ──────────────────────────────────────────────────────
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        button_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
 
         self.query_button = ttk.Button(button_frame, text="Query Device", command=self.on_query_click)
         self.query_button.pack(side=tk.LEFT, padx=5)
@@ -262,10 +309,11 @@ class OTAProberGUI:
 
         self.status_var = tk.StringVar(value="Ready")
         self.status_label = ttk.Label(main_frame, textvariable=self.status_var, foreground='#0066cc', style='Normal.TLabel')
-        self.status_label.grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=(0, 10))
+        self.status_label.grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=(0, 10))
 
+        # ── Results Notebook ──────────────────────────────────────────────
         output_frame = ttk.LabelFrame(main_frame, text="Results", padding="10")
-        output_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
+        output_frame.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
 
         header_frame = ttk.Frame(output_frame)
         header_frame.pack(fill=tk.X, pady=(0, 10))
@@ -281,6 +329,7 @@ class OTAProberGUI:
         self.notebook = ttk.Notebook(output_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
+        # Description tab
         self.desc_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.desc_frame, text="Description")
 
@@ -301,6 +350,7 @@ class OTAProberGUI:
             self.desc_text.pack(fill=tk.BOTH, expand=True)
             self.html_frame = None
 
+        # Full Log tab
         self.log_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.log_frame, text="Full Log")
 
@@ -329,25 +379,51 @@ class OTAProberGUI:
         self.url_map = {}
         self.current_ota_link = None
 
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(5, weight=1)
-
-        # --- Raw Response tab ---
+        # Raw Response tab
         self.raw_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.raw_frame, text="Raw Response")
         self._build_raw_tab()
 
-        # --- HTTP INFO TAB ---
+        # HTTP Info tab
         self.httpinfo_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.httpinfo_frame, text="HTTP Info")
         self._build_httpinfo_tab()
 
-        # --- BRUTEFORCE TAB ---
+        # Bruteforce tab
         self.brute_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.brute_frame, text="Bruteforce")
         self._build_bruteforce_tab()
+
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(6, weight=1)
+
+    # ── Обробник зміни вкладки (приховування/показ параметрів) ──────────
+    def _on_tab_changed(self, event):
+        current = self.notebook.index(self.notebook.select())
+        tab_text = self.notebook.tab(current, "text")
+        if tab_text == "Bruteforce":
+            self.params_frame.grid_remove()   # ховаємо
+        else:
+            self.params_frame.grid()          # показуємо
+
+    # ── Locale ↔ Timezone auto-fill ──────────────────────────────────────
+    def _on_locale_selected(self, event):
+        loc = self.locale_var.get().strip()
+        if loc in LOCALE_TZ_MAP:
+            self.timezone_var.set(LOCALE_TZ_MAP[loc])
+
+    def _on_locale_typed(self, event):
+        if event.keysym == 'Return':
+            loc = self.locale_var.get().strip()
+            if loc in LOCALE_TZ_MAP:
+                self.timezone_var.set(LOCALE_TZ_MAP[loc])
+
+    def reset_params(self):
+        self.locale_var.set("en-US")
+        self.timezone_var.set("America/New_York")
+        self.update_status("Parameters reset to default", 'success')
 
     # ── Raw Response tab ───────────────────────────────────────────────────
     def _build_raw_tab(self):
@@ -412,10 +488,6 @@ class OTAProberGUI:
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(content)
             self.update_status(f"Saved to {path}", 'success')
-
-    # ── Auto-populate URL ──────────────────────────────────────────────────
-    def _meta_autofill_url(self, url: str):
-        self.httpinfo_url_var.set(url)
 
     # ── HTTP Info tab ──────────────────────────────────────────────────────
     def _build_httpinfo_tab(self):
@@ -555,7 +627,7 @@ class OTAProberGUI:
 
         fp_lf = ttk.LabelFrame(wrapper, text="Fingerprint Template", padding="6")
         fp_lf.pack(fill=tk.X, pady=(0, 6))
-        ttk.Label(fp_lf, text="Use {BUILD}, {INC} and {KEY} as placeholders:").pack(anchor=tk.W)
+        ttk.Label(fp_lf, text="Use {BUILD}, {INC} and {KEY} as placeholders:").pack(anchor=tk.W)   # видалено {LOCALE}
         self.brute_fp_var = tk.StringVar(
             value="google/baracus/baracus:6.0/{BUILD}/{INC}:{KEY}"
         )
@@ -563,31 +635,38 @@ class OTAProberGUI:
         ttk.Label(fp_lf, text="{BUILD} = build ID   {INC} = incremental   {KEY} = key type",
                   foreground='#666666').pack(anchor=tk.W)
 
-        # Three columns: Build Tags | Key Types | Incremental Range
         mid = ttk.Frame(wrapper)
         mid.pack(fill=tk.X, pady=(0, 6))
-        mid.columnconfigure(0, weight=3)
-        mid.columnconfigure(1, weight=2)
-        mid.columnconfigure(2, weight=1)
+        mid.columnconfigure(0, weight=3)   # Build Tags
+        mid.columnconfigure(1, weight=3)   # Key Types
+        mid.columnconfigure(2, weight=1)   # Locales
+        mid.columnconfigure(3, weight=0)   # Incremental
 
-        # --- Build Tags (колонка 0) ---
-        bt_lf = ttk.LabelFrame(mid, text="Build Tags  (one per line)", padding="6")
+        # Build Tags
+        bt_lf = ttk.LabelFrame(mid, text="Build Tags", padding="6")
         bt_lf.grid(row=0, column=0, sticky=tk.NSEW, padx=(0, 6))
         self.brute_tags_text = tk.Text(bt_lf, height=4, font=('Courier', 9))
         self.brute_tags_text.pack(fill=tk.BOTH, expand=True)
         self.brute_tags_text.insert(tk.END, "MRTA.181211.008")
 
-        # --- Key Types (колонка 1) ---
-        kt_lf = ttk.LabelFrame(mid, text="Key Types  (one per line)", padding="6")
+        # Key Types
+        kt_lf = ttk.LabelFrame(mid, text="Key Types", padding="6")
         kt_lf.grid(row=0, column=1, sticky=tk.NSEW, padx=(0, 6))
         self.brute_keys_text = tk.Text(kt_lf, height=4, font=('Courier', 9))
         self.brute_keys_text.pack(fill=tk.BOTH, expand=True)
         self.brute_keys_text.insert(tk.END,
             "user/release-keys\nuser/test-keys")
 
-        # --- Incremental Range (колонка 2) ---
+        # Locales (тепер у колонці 2)
+        loc_lf = ttk.LabelFrame(mid, text="Locales", padding="6")
+        loc_lf.grid(row=0, column=2, sticky=tk.NSEW, padx=(0, 6))
+        self.brute_locales_text = tk.Text(loc_lf, height=4, font=('Courier', 9))
+        self.brute_locales_text.pack(fill=tk.BOTH, expand=True)
+        self.brute_locales_text.insert(tk.END, "en-US\nuk-UA\nru-RU")
+
+        # Incremental Range (тепер у колонці 3)
         inc_lf = ttk.LabelFrame(mid, text="Incremental Range", padding="6")
-        inc_lf.grid(row=0, column=2, sticky=tk.NSEW)
+        inc_lf.grid(row=0, column=3, sticky=tk.NSEW)
         inc_lf.columnconfigure(1, weight=1)
         self.brute_inc_start_var = tk.StringVar(value="370000")
         self.brute_inc_end_var = tk.StringVar(value="400000")
@@ -598,6 +677,7 @@ class OTAProberGUI:
             ttk.Label(inc_lf, text=lbl).grid(row=row_i, column=0, sticky=tk.W, pady=3)
             ttk.Entry(inc_lf, textvariable=var, width=12).grid(row=row_i, column=1, sticky=tk.EW, padx=(6, 0), pady=3)
 
+        # Options
         opt_lf = ttk.LabelFrame(wrapper, text="Options", padding="6")
         opt_lf.pack(fill=tk.X, pady=(0, 6))
         self.brute_stop_on_find_var = tk.BooleanVar(value=True)
@@ -626,7 +706,6 @@ class OTAProberGUI:
         self._brute_total = 0
         self._brute_running = False
 
-        # Очищаємо буфер логу
         self._brute_log_buffer = []
 
     # ── Bruteforce log window ─────────────────────────────────────────────
@@ -647,7 +726,6 @@ class OTAProberGUI:
         text = scrolledtext.ScrolledText(frame, wrap=tk.WORD, font=('Courier', 9), bg='white', fg='#333')
         text.pack(fill=tk.BOTH, expand=True)
 
-        # Налаштування тегів (таких самих як у головному лозі)
         text.tag_configure('found', foreground='#006600', font=('Courier', 9, 'bold'))
         text.tag_configure('skip', foreground='#aaaaaa')
         text.tag_configure('error', foreground='#cc0000')
@@ -655,12 +733,10 @@ class OTAProberGUI:
         text.tag_configure('info', foreground='#333333')
         text.tag_configure('changed', foreground='#cc6600', font=('Courier', 9, 'bold'))
 
-        # Вставляємо вже накопичений буфер
         for line, tag in self._brute_log_buffer:
             text.insert(tk.END, line + '\n', tag)
         text.see(tk.END)
 
-        # Зберігаємо посилання
         self._brute_log_window = win
         self._brute_log_text = text
 
@@ -670,22 +746,17 @@ class OTAProberGUI:
             self._brute_log_window = None
             self._brute_log_text = None
 
-    # ── Bruteforce log helpers ────────────────────────────────────────────
     def _brute_log(self, msg, tag='info'):
-        # Зберігаємо в буфер
         self._brute_log_buffer.append((msg, tag))
-        # Якщо вікно відкрите – вставляємо
         if self._brute_log_text and self._brute_log_window and self._brute_log_window.winfo_exists():
             self._brute_log_text.insert(tk.END, msg + '\n', tag)
             self._brute_log_text.see(tk.END)
 
     def _brute_clear_log(self):
-        """Clear the log buffer and the log window if open."""
         self._brute_log_buffer.clear()
         if self._brute_log_text and self._brute_log_window and self._brute_log_window.winfo_exists():
             self._brute_log_text.delete(1.0, tk.END)
 
-    # ── Bruteforce control ────────────────────────────────────────────────
     def _brute_pause(self):
         if not self._brute_running:
             return
@@ -723,6 +794,7 @@ class OTAProberGUI:
         use_build = '{BUILD}' in template
         use_inc = '{INC}' in template
         use_key = '{KEY}' in template
+        # {LOCALE} більше не використовується
 
         raw_tags = self.brute_tags_text.get("1.0", tk.END).strip()
         build_tags = [t.strip() for t in raw_tags.splitlines() if t.strip()]
@@ -739,6 +811,13 @@ class OTAProberGUI:
                 key_types = ["user/release-keys"]
             else:
                 key_types = [""]
+
+        raw_locales = self.brute_locales_text.get("1.0", tk.END).strip()
+        locales = [l.strip() for l in raw_locales.splitlines() if l.strip()]
+        if not locales:
+            # Якщо не задано жодної локаль, використовуємо поточну з головного вікна або en-US
+            default_loc = self.locale_var.get().strip()
+            locales = [default_loc if default_loc else "en-US"]
 
         try:
             inc_start_str = self.brute_inc_start_var.get().strip()
@@ -761,7 +840,8 @@ class OTAProberGUI:
             inc_count = 1
         build_count = len(build_tags) if use_build else 1
         key_count = len(key_types) if use_key else 1
-        total = build_count * key_count * inc_count
+        locale_count = len(locales)   # завжди враховуємо локалі
+        total = build_count * key_count * inc_count * locale_count
         if total == 0:
             total = 1
 
@@ -772,7 +852,6 @@ class OTAProberGUI:
         self._brute_processed = 0
         self._brute_total = total
 
-        # Clear log
         self._brute_clear_log()
 
         self.brute_start_btn.config(state=tk.DISABLED)
@@ -784,6 +863,7 @@ class OTAProberGUI:
 
         self._brute_log(f"Starting bruteforce: {total} combinations", 'header')
         self._brute_log(f"Template: {template}", 'header')
+        self._brute_log(f"Locales to test: {', '.join(locales)}", 'header')
         self._brute_log("=" * 70, 'header')
 
         try:
@@ -796,7 +876,7 @@ class OTAProberGUI:
         self._brute_producer_thread = threading.Thread(
             target=self._brute_producer,
             args=(build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers,
-                  use_build, use_inc, use_key),
+                  use_build, use_inc, use_key, locales),
             daemon=True
         )
         self._brute_producer_thread.start()
@@ -811,7 +891,7 @@ class OTAProberGUI:
         self.root.after(500, self._brute_monitor)
 
     def _brute_producer(self, build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers,
-                        use_build, use_inc, use_key):
+                        use_build, use_inc, use_key, locales):
         try:
             builds = build_tags if use_build else [""]
             keys = key_types if use_key else [""]
@@ -823,9 +903,12 @@ class OTAProberGUI:
             for bt in builds:
                 for inc in inc_values:
                     for kt in keys:
+                        for loc in locales:
+                            if self._brute_stop_flag:
+                                break
+                            self._brute_queue.put((bt, kt, str(inc) if use_inc else "", loc, template), block=True)
                         if self._brute_stop_flag:
                             break
-                        self._brute_queue.put((bt, kt, str(inc) if use_inc else "", template), block=True)
                     if self._brute_stop_flag:
                         break
                 if self._brute_stop_flag:
@@ -845,7 +928,8 @@ class OTAProberGUI:
                 continue
             if item is None:
                 break
-            build_tag, key_type, inc, template = item
+            build_tag, key_type, inc, loc, template = item
+
             fp = template
             if '{BUILD}' in template:
                 fp = fp.replace('{BUILD}', build_tag)
@@ -853,6 +937,10 @@ class OTAProberGUI:
                 fp = fp.replace('{INC}', inc)
             if '{KEY}' in template:
                 fp = fp.replace('{KEY}', key_type)
+            # {LOCALE} більше не замінюється
+
+            # Отримуємо timezone для даного locale
+            tz = LOCALE_TZ_MAP.get(loc, 'America/New_York')
 
             max_retries = 3
             for attempt in range(max_retries):
@@ -862,21 +950,22 @@ class OTAProberGUI:
                 if self._brute_stop_flag:
                     break
                 try:
-                    settings, _raw = perform_checkin(fp)
+                    # ЗАВЖДИ передаємо locale та timezone у запит
+                    settings, _raw = perform_checkin(fp, locale=loc, timezone=tz)
                     if not settings:
                         if attempt == max_retries - 1:
-                            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → no response (after {max_retries} retries)", 'skip')
+                            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → no response (after {max_retries} retries)", 'skip')
                             self._brute_increment_progress()
                         else:
                             time.sleep(1)
                         continue
                     ota = find_ota_link(settings)
-                    self._brute_process_result(fp, build_tag, key_type, inc, ota)
+                    self._brute_process_result(fp, build_tag, key_type, inc, loc, ota)
                     self._brute_increment_progress()
                     break
                 except Exception as e:
                     if attempt == max_retries - 1:
-                        self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → ERROR: {e} (after {max_retries} retries)", 'error')
+                        self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → ERROR: {e} (after {max_retries} retries)", 'error')
                         self._brute_increment_progress()
                     else:
                         time.sleep(1)
@@ -890,17 +979,17 @@ class OTAProberGUI:
                 f"found={self._brute_found_count} keys, unique={len(self._brute_found_data)}"
             )
 
-    def _brute_process_result(self, fp, build_tag, key_type, inc, ota):
+    def _brute_process_result(self, fp, build_tag, key_type, inc, loc, ota):
         skip_dupes = self.brute_skip_dupes_var.get()
         pause_on_find = self.brute_stop_on_find_var.get()
         save_otas = self.brute_save_otas_var.get()
 
         if ota is None:
-            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → no OTA", 'skip')
+            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → no OTA", 'skip')
             return
         url = ota.get('url')
         if not url:
-            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → no OTA URL", 'skip')
+            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → no OTA URL", 'skip')
             return
 
         title = ota.get('title', '')
@@ -912,24 +1001,38 @@ class OTAProberGUI:
             self._brute_found_count += 1
 
         with self._brute_progress_lock:
-            old_meta = self._brute_found_data.get(url)
-            is_new = old_meta is None
-            is_changed = False if is_new else (meta != old_meta)
-            if is_new:
-                self._brute_found_data[url] = meta
-            elif is_changed:
-                self._brute_found_data[url] = meta
+            meta_set = self._brute_found_data.get(url)
+            if meta_set is None:
+                # New URL
+                self._brute_found_data[url] = {meta}
+                is_new = True
+                is_changed = False
+                is_duplicate = False
             else:
-                if skip_dupes:
-                    self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → OTA found (duplicate URL, skipped from unique)", 'found')
+                if meta in meta_set:
+                    # Same metadata already seen for this URL
+                    is_new = False
+                    is_changed = False
+                    is_duplicate = True
                 else:
-                    self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} → OTA found (duplicate URL, but metadata same)", 'found')
-                return
+                    # New metadata set for this URL
+                    meta_set.add(meta)
+                    is_new = False
+                    is_changed = True
+                    is_duplicate = False
 
+        if is_duplicate:
+            if skip_dupes:
+                self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → OTA found (duplicate URL and metadata, skipped)", 'skip')
+            else:
+                self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → OTA found (duplicate URL and metadata)", 'found')
+            return
+
+        # Log the result
         if is_new:
             local_count = len(self._brute_found_data)
             self._brute_log(f"", 'found')
-            self._brute_log(f"  ★ NEW #{local_count}  BUILD={build_tag}  KEY={key_type}  INC={inc}", 'found')
+            self._brute_log(f"  ★ NEW #{local_count}  BUILD={build_tag}  KEY={key_type}  INC={inc}  LOCALE={loc}", 'found')
             self._brute_log(f"    Fingerprint : {fp}", 'found')
             self._brute_log(f"    URL         : {url}", 'found')
             if title:
@@ -940,24 +1043,34 @@ class OTAProberGUI:
                 self._brute_log(f"    Size        : {size}", 'found')
             self._brute_log(f"", 'found')
         elif is_changed:
-            old_title, old_desc, old_size = old_meta
+            # Determine what changed for a meaningful message
+            # Compare with any other metadata set for this URL
+            other_meta = next(iter(meta_set - {meta}))
+            other_title, other_desc, other_size = other_meta
+            changed_title = (other_title != title)
+            changed_desc = (other_desc != desc)
+            if changed_title or changed_desc:
+                change_msg = "Found OTA with different description (UPDATED)"
+            elif other_size != size:
+                change_msg = "OTA size changed (UPDATED)"
+            else:
+                change_msg = "OTA metadata updated (UPDATED)"
             local_count = len(self._brute_found_data)
             self._brute_log(f"", 'changed')
-            self._brute_log(f"  ⚡ UPDATED #{local_count}  BUILD={build_tag}  KEY={key_type}  INC={inc}", 'changed')
+            self._brute_log(f"  ⚡ {change_msg}  BUILD={build_tag}  KEY={key_type}  INC={inc}  LOCALE={loc}", 'changed')
             self._brute_log(f"    Fingerprint : {fp}", 'changed')
             self._brute_log(f"    URL         : {url}", 'changed')
-            if old_title != title:
-                self._brute_log(f"    Title (old) : {old_title}", 'changed')
-                self._brute_log(f"    Title (new) : {title}", 'changed')
-            if old_desc != desc:
-                self._brute_log(f"    Description (old): {old_desc[:80]}{'...' if len(old_desc)>80 else ''}", 'changed')
-                self._brute_log(f"    Description (new): {desc[:80]}{'...' if len(desc)>80 else ''}", 'changed')
-            if old_size != size:
-                self._brute_log(f"    Size (old)  : {old_size}", 'changed')
-                self._brute_log(f"    Size (new)  : {size}", 'changed')
+            if title:
+                self._brute_log(f"    Title       : {title}", 'changed')
+            if desc:
+                self._brute_log(f"    Description : {desc[:80]}{'...' if len(desc)>80 else ''}", 'changed')
+            if size:
+                self._brute_log(f"    Size        : {size}", 'changed')
             self._brute_log(f"", 'changed')
+        else:
+            return  # should not happen
 
-        # Зберігаємо в OTAs.txt тільки якщо ввімкнено
+        # Save to OTAs.txt if enabled
         if save_otas:
             try:
                 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -980,12 +1093,14 @@ class OTAProberGUI:
             except Exception as e:
                 self._brute_log(f"    Could not save to OTAs.txt: {e}", 'error')
 
-        if pause_on_find:
+        # Pause only when a completely new OTA URL is found (not on updates)
+        if pause_on_find and is_new:
             self._brute_pause_event.clear()
             self.brute_pause_btn.config(state=tk.DISABLED)
             self.brute_continue_btn.config(state=tk.NORMAL)
             self.brute_stop_btn.config(state=tk.NORMAL)
-            self.brute_status_var.set(f"⏸ Paused after {'new' if is_new else 'metadata'} find #{local_count} — press Continue")
+            pause_msg = f"⏸ Paused after new OTA found (#{local_count}) — press Continue"
+            self.brute_status_var.set(pause_msg)
 
     def _brute_monitor(self):
         if self._brute_stop_flag:
@@ -1077,6 +1192,9 @@ class OTAProberGUI:
         except Exception as e:
             self.update_status(f"Failed to copy: {e}", 'error')
 
+    def _meta_autofill_url(self, url: str):
+        self.httpinfo_url_var.set(url)
+
     def on_query_click(self):
         fingerprint = self.fingerprint_var.get().strip()
         if not fingerprint:
@@ -1109,7 +1227,10 @@ class OTAProberGUI:
             parsed = parse_fingerprint(fingerprint)
             self.update_status("Sending check-in request...")
 
-            settings, raw_bytes = perform_checkin(fingerprint)
+            locale = self.locale_var.get().strip()
+            timezone = self.timezone_var.get().strip()
+
+            settings, raw_bytes = perform_checkin(fingerprint, locale, timezone)
 
             if not settings:
                 self.log_output("ERROR: Check-in failed - No response from server", 'error')
@@ -1132,6 +1253,8 @@ class OTAProberGUI:
                         'build_info': build_info,
                         'ota_link': ota_link,
                         'total_settings': len(settings),
+                        'locale': locale,
+                        'timezone': timezone,
                     }
                     output_str = json.dumps(json_data, indent=2)
                     self.log_output(output_str)
@@ -1150,6 +1273,8 @@ class OTAProberGUI:
                             'build_info': build_info,
                             'ota_link': ota_link,
                             'total_settings': len(settings),
+                            'locale': locale,
+                            'timezone': timezone,
                         }, indent=2)
                     else:
                         output_str = self.output_text.get(1.0, tk.END)
@@ -1354,54 +1479,67 @@ class OTAProberGUI:
                 "eng/test-keys"
             ]
 
+            # Отримуємо список locale з поля Scan Locales
+            scan_locales_str = self.scan_locales_var.get().strip()
+            if scan_locales_str:
+                import re
+                locales = [loc.strip() for loc in re.split(r'[,\s\n]+', scan_locales_str) if loc.strip()]
+            else:
+                locales = [self.locale_var.get().strip()]
+
             self.log_output("=" * 75, 'header')
             self.log_output("KEY TYPE SCAN RESULTS", 'header')
             self.log_output("=" * 75, 'header')
             self.log_output(f"Fingerprint base: {prefix}:", 'info')
+            self.log_output(f"Locales: {', '.join(locales)}", 'info')
             self.log_output("")
 
             found_links = []
-            total = len(key_types)
+            total = len(key_types) * len(locales)
+            counter = 0
 
-            for i, key in enumerate(key_types, 1):
-                test_fp = f"{prefix}:{key}"
-                self.log_output(f"[{i}/{total}] {key}", 'section')
-                self.log_output(f"  Fingerprint: {test_fp}", 'info')
-                self.update_status(f"Scanning {key} ({i}/{total})...")
+            for loc in locales:
+                tz = LOCALE_TZ_MAP.get(loc, 'America/New_York')
+                for key in key_types:
+                    counter += 1
+                    test_fp = f"{prefix}:{key}"
+                    self.log_output(f"[{counter}/{total}] Locale: {loc}  Key: {key}", 'section')
+                    self.log_output(f"  Fingerprint: {test_fp}", 'info')
+                    self.update_status(f"Scanning {key} with {loc} ({counter}/{total})...")
 
-                try:
-                    settings, raw_bytes = perform_checkin(test_fp)
-                    if not settings:
-                        self.log_output("  Status: ❌ No response from server", 'error')
-                        continue
+                    try:
+                        settings, raw_bytes = perform_checkin(test_fp, locale=loc, timezone=tz)
+                        if not settings:
+                            self.log_output("  Status: ❌ No response from server", 'error')
+                            continue
 
-                    ota = find_ota_link(settings)
-                    if ota and ota.get('url'):
-                        self.log_output("  Status: ✅ OTA found", 'success')
-                        self.log_output(f"  URL: {ota['url']}", 'success')
-                        if ota.get('title'):
-                            self.log_output(f"  Title: {ota['title']}", 'info')
-                        if ota.get('size'):
-                            self.log_output(f"  Size: {ota['size']}", 'info')
-                        found_links.append((key, ota['url'], ota.get('title', ''), ota.get('size', '')))
-                    else:
-                        self.log_output("  Status: ❌ No OTA", 'error')
-                except Exception as e:
-                    self.log_output(f"  Status: ❌ Error: {e}", 'error')
+                        ota = find_ota_link(settings)
+                        if ota and ota.get('url'):
+                            self.log_output("  Status: ✅ OTA found", 'success')
+                            self.log_output(f"  URL: {ota['url']}", 'success')
+                            if ota.get('title'):
+                                self.log_output(f"  Title: {ota['title']}", 'info')
+                            if ota.get('size'):
+                                self.log_output(f"  Size: {ota['size']}", 'info')
+                            found_links.append((key, loc, ota['url'], ota.get('title', ''), ota.get('size', '')))
+                        else:
+                            self.log_output("  Status: ❌ No OTA", 'error')
+                    except Exception as e:
+                        self.log_output(f"  Status: ❌ Error: {e}", 'error')
 
-                self.log_output("", 'info')
+                    self.log_output("", 'info')
 
             self.log_output("=" * 75, 'header')
             if found_links:
                 self.log_output(f"SUMMARY: Found {len(found_links)} OTA link(s)", 'success')
-                for key, url, title, size in found_links:
-                    self.log_output(f"  - {key} → {url}", 'success')
+                for key, loc, url, title, size in found_links:
+                    self.log_output(f"  - {key}  (locale {loc}) → {url}", 'success')
                     if title:
                         self.log_output(f"      Title: {title}", 'info')
                     if size:
                         self.log_output(f"      Size: {size}", 'info')
             else:
-                self.log_output("SUMMARY: No OTA links found for any key type", 'error')
+                self.log_output("SUMMARY: No OTA links found for any key type or locale", 'error')
             self.log_output("=" * 75, 'header')
 
             self.update_status(f"Key scan completed – {len(found_links)} OTA(s) found", 'success' if found_links else 'error')
@@ -1706,7 +1844,7 @@ def format_raw_response(raw_bytes):
     return human_str, hex_str
 
 
-def build_checkin_request(fingerprint):
+def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_York"):
     try:
         parsed = parse_fingerprint(fingerprint)
     except ValueError as e:
@@ -1734,8 +1872,8 @@ def build_checkin_request(fingerprint):
     request += encode_varint(tag) + encode_varint(len(checkin)) + checkin
     request += encode_int64(2, 0)
     request += encode_string(3, "1-0000000000000000000000000000000000000000")
-    request += encode_string(6, "en-US")
-    request += encode_string(12, "America/New_York")
+    request += encode_string(6, locale)
+    request += encode_string(12, timezone)
     request += encode_int64(14, 3)
     request += encode_int64(20, 0)
     request += encode_int64(22, 0)
@@ -1743,10 +1881,10 @@ def build_checkin_request(fingerprint):
     return request
 
 
-def perform_checkin(fingerprint):
+def perform_checkin(fingerprint, locale="en-US", timezone="America/New_York"):
     try:
         parsed = parse_fingerprint(fingerprint)
-        request_data = build_checkin_request(fingerprint)
+        request_data = build_checkin_request(fingerprint, locale, timezone)
         compressed = gzip.compress(request_data)
 
         url = 'https://android.googleapis.com/checkin'
