@@ -177,11 +177,30 @@ class OTAProberGUI:
                 return do_cut(event)
             if matches(event, 'all'):
                 return do_select_all(event)
+            # Якщо це Ctrl-комбінація, яку ми обробляємо на bind_class
+            # (Control-c/v/x/a), але matches() з якоїсь причини не спрацював -
+            # все одно гасимо подію, щоб не було подвійної обробки.
+            if event.state & 0x4 and event.keysym.lower() in ('c', 'v', 'x', 'a'):
+                return "break"
 
-        # ВАЖЛИВО: без add='+', щоб цей обробник ПОВНІСТЮ замінював
-        # стандартну поведінку tkinter, а не додавався до неї.
-        # Інакше при англійській розкладці спрацьовують ОБИДВА обробники
-        # (і стандартний <<Paste>>, і наш) -> текст вставляється двічі.
+        # Прив'язуємо нашу логіку НАПРЯМУ на рівні класів (Entry/Text/...),
+        # а не через bind_all: bindtags виконуються в порядку
+        # widget -> class -> toplevel -> all, тому bind_class спрацьовує
+        # РАНІШЕ за bind_all і повністю замінює стандартну class-поведінку
+        # copy/paste/cut/selectall для будь-якого keysym, включно з
+        # англійськими (c/v/x/a) та будь-якими іншими.
+        for widget_class in ('Entry', 'Text', 'TEntry', 'TCombobox'):
+            self.root.bind_class(widget_class, '<Control-c>', on_key)
+            self.root.bind_class(widget_class, '<Control-C>', on_key)
+            self.root.bind_class(widget_class, '<Control-v>', on_key)
+            self.root.bind_class(widget_class, '<Control-V>', on_key)
+            self.root.bind_class(widget_class, '<Control-x>', on_key)
+            self.root.bind_class(widget_class, '<Control-X>', on_key)
+            self.root.bind_class(widget_class, '<Control-a>', on_key)
+            self.root.bind_class(widget_class, '<Control-A>', on_key)
+
+        # bind_all ловить <Key> для НЕанглійських розкладок, де keysym
+        # не 'c'/'v'/'x'/'a' і клас-біндинги вище не спрацьовують.
         self.root.bind_all('<Key>', on_key)
 
     def setup_styles(self):
