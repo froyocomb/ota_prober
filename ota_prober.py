@@ -174,7 +174,11 @@ class OTAProberGUI:
             if matches(event, 'all'):
                 return do_select_all(event)
 
-        self.root.bind_all('<Key>', on_key, add='+')
+        # ВАЖЛИВО: без add='+', щоб цей обробник ПОВНІСТЮ замінював
+        # стандартну поведінку tkinter, а не додавався до неї.
+        # Інакше при англійській розкладці спрацьовують ОБИДВА обробники
+        # (і стандартний <<Paste>>, і наш) -> текст вставляється двічі.
+        self.root.bind_all('<Key>', on_key)
 
     def setup_styles(self):
         style = ttk.Style()
