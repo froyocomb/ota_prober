@@ -41,10 +41,140 @@ class OTAProberGUI:
         self.query_thread = None
         self.keyscan_thread = None
 
+        self._setup_layout_independent_shortcuts()
+
         # Для брутфорсу
         self._brute_log_buffer = []
         self._brute_log_window = None
         self._brute_log_text = None
+
+    def _setup_layout_independent_shortcuts(self):
+        """
+        Робить Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+A робочими незалежно від
+        поточної розкладки клавіатури (укр., рос., будь-яка інша).
+
+        Стандартні tkinter-біндинги спрацьовують по keysym (символу),
+        а символ 'c' існує лише в латинській розкладці, тому Control-c
+        не збігається, коли розкладка не англійська.
+
+        Тут натомість перевіряємо event.char: коли затиснутий Ctrl,
+        ОС генерує ASCII control-char (Ctrl+C -> '\\x03', Ctrl+V -> '\\x16',
+        Ctrl+X -> '\\x18', Ctrl+A -> '\\x01') незалежно від розкладки,
+        бо це визначається позицією клавіші, а не її символом.
+        """
+        CTRL_CHARS = {
+            'copy':  '\x03',
+            'paste': '\x16',
+            'cut':   '\x18',
+            'all':   '\x01',
+        }
+        KEYSYMS = {
+            'copy':  {'c', 'C'},
+            'paste': {'v', 'V'},
+            'cut':   {'x', 'X'},
+            'all':   {'a', 'A'},
+        }
+
+        def get_focused_text_widget():
+            w = self.root.focus_get()
+            if isinstance(w, (tk.Entry, ttk.Entry, tk.Text, scrolledtext.ScrolledText)):
+                return w
+            return None
+
+        def do_copy(event):
+            w = get_focused_text_widget()
+            if w is None:
+                return
+            try:
+                if isinstance(w, (tk.Entry, ttk.Entry)):
+                    if w.selection_present():
+                        text = w.selection_get()
+                    else:
+                        return
+                else:
+                    text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
+                self.root.clipboard_clear()
+                self.root.clipboard_append(text)
+            except tk.TclError:
+                pass
+            return "break"
+
+        def do_paste(event):
+            w = get_focused_text_widget()
+            if w is None:
+                return
+            try:
+                clip = self.root.clipboard_get()
+            except tk.TclError:
+                return "break"
+            try:
+                if isinstance(w, (tk.Entry, ttk.Entry)):
+                    if w.selection_present():
+                        w.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                    w.insert(tk.INSERT, clip)
+                else:
+                    if w.tag_ranges(tk.SEL):
+                        w.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                    w.insert(tk.INSERT, clip)
+            except tk.TclError:
+                pass
+            return "break"
+
+        def do_cut(event):
+            w = get_focused_text_widget()
+            if w is None:
+                return
+            try:
+                if isinstance(w, (tk.Entry, ttk.Entry)):
+                    if not w.selection_present():
+                        return "break"
+                    text = w.selection_get()
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(text)
+                    w.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                else:
+                    if not w.tag_ranges(tk.SEL):
+                        return "break"
+                    text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(text)
+                    w.delete(tk.SEL_FIRST, tk.SEL_LAST)
+            except tk.TclError:
+                pass
+            return "break"
+
+        def do_select_all(event):
+            w = get_focused_text_widget()
+            if w is None:
+                return
+            try:
+                if isinstance(w, (tk.Entry, ttk.Entry)):
+                    w.selection_range(0, tk.END)
+                else:
+                    w.tag_add(tk.SEL, '1.0', tk.END)
+            except tk.TclError:
+                pass
+            return "break"
+
+        def matches(event, action):
+            if event.char == CTRL_CHARS[action]:
+                return True
+            ks = event.keysym
+            if (event.state & 0x4) and ks in KEYSYMS[action]:
+                return True
+            return False
+
+        def on_key(event):
+            if matches(event, 'copy'):
+                return do_copy(event)
+            if matches(event, 'paste'):
+                return do_paste(event)
+            if matches(event, 'cut'):
+                return do_cut(event)
+            if matches(event, 'all'):
+                return do_select_all(event)
+
+        self.root.bind_all('<Key>', on_key, add='+')
 
     def setup_styles(self):
         style = ttk.Style()
