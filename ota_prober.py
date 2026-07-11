@@ -23,6 +23,7 @@ import socket
 import http.client
 from urllib.parse import urlparse
 import struct
+import zlib
 
 try:
     from tkinterweb import HtmlFrame
@@ -488,7 +489,7 @@ class OTAProberGUI:
 
         # ── Scan Locales (для сканування ключів) ─────────────────────────
         ttk.Label(options_frame, text="Scan Locales (comma/space separated):", style='Normal.TLabel').grid(row=0, column=2, sticky=tk.W, padx=(20,5))
-        self.scan_locales_var = tk.StringVar(value="en-US,uk-UA,ru-RU")
+        self.scan_locales_var = tk.StringVar(value="en-US,uk-UA")
         scan_locales_entry = ttk.Entry(options_frame, textvariable=self.scan_locales_var, width=30)
         scan_locales_entry.grid(row=0, column=3, sticky=tk.W, padx=5)
 
@@ -579,6 +580,8 @@ class OTAProberGUI:
 
         self.url_map = {}
         self.current_ota_link = None
+        self.current_ota_precondition = ''
+        self.current_ota_postcondition = ''
 
         # Raw Response tab
         self.raw_frame = ttk.Frame(self.notebook)
@@ -726,7 +729,7 @@ class OTAProberGUI:
             tv.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             sb.pack(side=tk.RIGHT, fill=tk.Y)
 
-            def _copy_value(event):
+            def _copy_value(event=None):
                 sel = tv.selection()
                 if not sel:
                     return
@@ -735,7 +738,7 @@ class OTAProberGUI:
                 self.root.clipboard_append(value)
                 self.httpinfo_status_var.set(f"Copied: {value[:80]}{'…' if len(value) > 80 else ''}")
 
-            def _copy_row(event):
+            def _copy_row(event=None):
                 sel = tv.selection()
                 if not sel:
                     return
@@ -744,7 +747,7 @@ class OTAProberGUI:
                 self.root.clipboard_append(f"{k}: {v}")
                 self.httpinfo_status_var.set(f"Copied row: {k}")
 
-            tv.bind('<ButtonRelease-1>', _copy_value)
+            tv.bind('<<TreeviewSelect>>', _copy_value)
             tv.bind('<Double-ButtonRelease-1>', _copy_row)
             return f, tv
 
@@ -763,20 +766,112 @@ class OTAProberGUI:
         tim_f, self.hi_tree_timing = _make_tree(self.httpinfo_nb, "Phase", "ms")
         self.httpinfo_nb.add(tim_f, text="Timing")
 
+        meta_f = ttk.Frame(self.httpinfo_nb)
+        self.httpinfo_nb.add(meta_f, text="Payload Metadata")
+
+        meta_tree_wrap = ttk.Frame(meta_f)
+        meta_tree_wrap.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        cols = ("field", "value")
+        self.hi_tree_metadata = ttk.Treeview(meta_tree_wrap, columns=cols, show="headings")
+        self.hi_tree_metadata.heading("field", text="Field")
+        self.hi_tree_metadata.heading("value", text="Value")
+        self.hi_tree_metadata.column("field", width=260, stretch=False)
+        self.hi_tree_metadata.column("value", width=560, stretch=True)
+        meta_sb = ttk.Scrollbar(meta_tree_wrap, orient=tk.VERTICAL, command=self.hi_tree_metadata.yview)
+        self.hi_tree_metadata.configure(yscrollcommand=meta_sb.set)
+        self.hi_tree_metadata.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        meta_sb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        def _copy_meta_value(event=None):
+            sel = self.hi_tree_metadata.selection()
+            if not sel:
+                return
+            value = self.hi_tree_metadata.item(sel[0], 'values')[1]
+            self.root.clipboard_clear()
+            self.root.clipboard_append(value)
+
+        def _copy_meta_row(event=None):
+            sel = self.hi_tree_metadata.selection()
+            if not sel:
+                return
+            k, v = self.hi_tree_metadata.item(sel[0], 'values')
+            self.root.clipboard_clear()
+            self.root.clipboard_append(f"{k}: {v}")
+
+        self.hi_tree_metadata.bind('<<TreeviewSelect>>', _copy_meta_value)
+        self.hi_tree_metadata.bind('<Double-ButtonRelease-1>', _copy_meta_row)
+
+        meta_side = ttk.Frame(meta_f, padding=(8, 6), width=270)
+        meta_side.pack(side=tk.RIGHT, fill=tk.Y)
+        meta_side.pack_propagate(False)
+        ttk.Label(meta_side, text="Status", font=('TkDefaultFont', 9, 'bold')).pack(anchor=tk.N, pady=(0, 4))
+        self.hi_metadata_status_var = tk.StringVar(value="")
+        ttk.Label(meta_side, textvariable=self.hi_metadata_status_var, wraplength=220,
+                  justify=tk.LEFT, foreground='#666666').pack(anchor=tk.N, fill=tk.X)
+
+        alt_f = ttk.Frame(self.httpinfo_nb)
+        self.httpinfo_nb.add(alt_f, text="Alternative Filenames")
+
+        alt_wrap = ttk.Frame(alt_f)
+        alt_wrap.pack(fill=tk.BOTH, expand=True)
+        self.hi_list_altnames = tk.Listbox(alt_wrap, font=('Courier', 9), activestyle='none',
+                                            exportselection=False)
+        alt_sb = ttk.Scrollbar(alt_wrap, orient=tk.VERTICAL, command=self.hi_list_altnames.yview)
+        self.hi_list_altnames.configure(yscrollcommand=alt_sb.set)
+        self.hi_list_altnames.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        alt_sb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        def _copy_alt_selection(event=None):
+            sel = self.hi_list_altnames.curselection()
+            if not sel:
+                return
+            value = self.hi_list_altnames.get(sel[0])
+            self.root.clipboard_clear()
+            self.root.clipboard_append(value)
+
+        self.hi_list_altnames.bind('<<ListboxSelect>>', _copy_alt_selection)
+
+        self._httpinfo_last_result = None
+        self._httpinfo_metadata_loaded = False
+        self._httpinfo_altnames_loaded = False
+
     def _httpinfo_start(self):
         url = self.httpinfo_url_var.get().strip()
         if not url:
             messagebox.showerror("HTTP Info", "Please enter an OTA URL first.")
             return
+
+        try:
+            current_tab_text = self.httpinfo_nb.tab(self.httpinfo_nb.select(), 'text')
+        except Exception:
+            current_tab_text = None
+
         self.httpinfo_fetch_btn.config(state=tk.DISABLED)
         self.httpinfo_progress.start(12)
-        self.httpinfo_status_var.set("Probing…")
-        threading.Thread(target=self._httpinfo_worker, args=(url,), daemon=True).start()
+
+        if current_tab_text in ("Payload Metadata", "Alternative Filenames"):
+            self.httpinfo_status_var.set("Fetching metadata and alternative filenames…")
+
+            for ch in self.hi_tree_metadata.get_children():
+                self.hi_tree_metadata.delete(ch)
+            self.hi_metadata_status_var.set("Loading…")
+
+            self.hi_list_altnames.delete(0, tk.END)
+            self.hi_list_altnames.insert(tk.END, "Checking…")
+
+            threading.Thread(target=self._httpinfo_metadata_worker, args=(url,), daemon=True).start()
+            threading.Thread(target=self._httpinfo_altnames_worker, args=(url,), daemon=True).start()
+
+        else:
+            self.httpinfo_status_var.set("Probing…")
+            self._httpinfo_last_result = None
+            threading.Thread(target=self._httpinfo_worker, args=(url,), daemon=True).start()
 
     def _httpinfo_worker(self, url):
         try:
             result = probe_ota_url(url, status_cb=lambda m: self.root.after(
                 0, self.httpinfo_status_var.set, m))
+            self._httpinfo_last_result = result
             self.root.after(0, self._httpinfo_display, result)
         except Exception as exc:
             self.root.after(0, self.httpinfo_status_var.set, f"Error: {exc}")
@@ -786,6 +881,56 @@ class OTAProberGUI:
     def _httpinfo_done(self):
         self.httpinfo_progress.stop()
         self.httpinfo_fetch_btn.config(state=tk.NORMAL)
+
+    def _httpinfo_metadata_worker(self, url):
+        try:
+            meta = fetch_payload_metadata(url, status_cb=lambda m: self.root.after(
+                0, self.hi_metadata_status_var.set, m))
+            self.root.after(0, self._httpinfo_display_metadata, meta)
+        except Exception as exc:
+            self.root.after(0, self.hi_metadata_status_var.set, f"Metadata error: {exc}")
+        finally:
+            self.root.after(0, self._httpinfo_done)
+
+    def _httpinfo_altnames_worker(self, url):
+        meta = {}
+        try:
+            meta = fetch_payload_metadata(url)
+        except Exception:
+            pass
+
+        last_modified = ''
+        for label, val in (self._httpinfo_last_result or {}).get('general', []):
+            if label == 'Last-Modified':
+                last_modified = val
+                break
+        if not last_modified:
+            try:
+                req = urllib.request.Request(url, method='HEAD', headers={
+                    'User-Agent': 'OTA-Prober/2.0',
+                    'Accept-Encoding': 'identity',
+                })
+                ctx = ssl.create_default_context()
+                with urllib.request.urlopen(req, timeout=12, context=ctx) as resp:
+                    last_modified = resp.headers.get('Last-Modified', '') or ''
+            except Exception:
+                pass
+
+        try:
+            pre_fp = meta.get('fields', {}).get('pre-build') or self.current_ota_precondition
+            post_fp = meta.get('fields', {}).get('post-build') or self.current_ota_postcondition
+            alt = probe_alternative_filenames(
+                url, last_modified,
+                pre_fp, post_fp,
+                status_cb=lambda m: self.root.after(
+                    0, lambda: (self.hi_list_altnames.delete(0, tk.END),
+                                self.hi_list_altnames.insert(tk.END, m))))
+            self.root.after(0, self._httpinfo_display_altnames, alt)
+        except Exception as exc:
+            self.root.after(0, self._httpinfo_display_altnames,
+                             {'checked': False, 'reason': f"Error: {exc}", 'results': []})
+        finally:
+            self.root.after(0, self._httpinfo_done)
 
     def _httpinfo_display(self, r: dict):
         def _fill(tree, rows):
@@ -803,6 +948,34 @@ class OTAProberGUI:
 
         summary = r.get('summary', '')
         self.httpinfo_status_var.set(summary)
+
+    def _httpinfo_display_metadata(self, meta: dict):
+        for ch in self.hi_tree_metadata.get_children():
+            self.hi_tree_metadata.delete(ch)
+
+        if meta.get('found'):
+            for k, v in meta.get('fields', {}).items():
+                self.hi_tree_metadata.insert("", tk.END, values=(k, v))
+            self.hi_metadata_status_var.set(
+                f"Found in {meta.get('source', '?')} — {len(meta.get('fields', {}))} field(s)")
+        else:
+            err = meta.get('error') or "No metadata fields found (package may not expose plaintext metadata)."
+            self.hi_metadata_status_var.set(err.strip(' |'))
+
+    def _httpinfo_display_altnames(self, alt: dict):
+        self.hi_list_altnames.delete(0, tk.END)
+
+        if not alt.get('checked'):
+            self.hi_list_altnames.insert(tk.END, alt.get('reason', 'Not checked'))
+            return
+
+        working = [candidate_url for name, candidate_url, ok in alt.get('results', []) if ok]
+        if not working:
+            self.hi_list_altnames.insert(tk.END, "No working alternative links found.")
+            return
+
+        for url in working:
+            self.hi_list_altnames.insert(tk.END, url)
 
     # ── Bruteforce tab ─────────────────────────────────────────────────────
     def _build_bruteforce_tab(self):
@@ -1553,6 +1726,8 @@ class OTAProberGUI:
                 self.log_output(f"  Size:              {ota_link['size']}", 'info')
 
             self.current_ota_link = ota_link['url']
+            self.current_ota_precondition = ota_link.get('precondition', '')
+            self.current_ota_postcondition = ota_link.get('postcondition', '')
             header_text = f"🔗 {ota_link['url']}"
             self.ota_link_label.config(text=header_text, foreground='#0066cc')
             self._meta_autofill_url(ota_link['url'])
@@ -2293,6 +2468,448 @@ def format_output(fingerprint, settings, build_info, ota_link):
     output.append("\n" + "=" * 63)
 
     return "\n".join(output)
+
+
+# ── Payload metadata extractor ───────────────────────────────────────────
+
+PAYLOAD_METADATA_PREFIXES = [
+    'post-build',
+    'pre-build',
+    'pre-device',
+    'post-build-incremental',
+    'post-sdk-level',
+    'post-security-patch-level',
+    'post-timestamp',
+    'ota-type',
+    'ota-required-cache',
+    'pre-build-incremental',
+]
+
+EOCD_SIG = b'PK\x05\x06'
+CDFH_SIG = b'PK\x01\x02'
+LFH_SIG = b'PK\x03\x04'
+
+
+def _extract_metadata_kv(blob: bytes, prefixes) -> dict:
+    """Scan a byte blob for `key=value\\n` pairs matching the given prefixes."""
+    result = {}
+    for prefix in prefixes:
+        needle = f'{prefix}='.encode('utf-8')
+        start = blob.find(needle)
+        if start == -1:
+            continue
+        val_start = start + len(needle)
+        end = blob.find(b'\n', val_start)
+        if end == -1:
+            end = len(blob)
+        try:
+            value = blob[val_start:end].decode('utf-8', errors='replace').strip('\r')
+        except Exception:
+            continue
+        if value:
+            result[prefix] = value
+    return result
+
+
+def _find_zip_metadata_entry(tail_blob: bytes, tail_offset: int):
+    """
+    Look for the End Of Central Directory record inside `tail_blob`, then
+    walk the central directory to find the META-INF/com/android/metadata
+    entry. Returns (local_header_offset, compressed_size, compression_method,
+    file_name) or None if not found.
+    """
+    eocd_pos = tail_blob.rfind(EOCD_SIG)
+    if eocd_pos == -1:
+        return None
+
+    try:
+        cd_size = struct.unpack('<I', tail_blob[eocd_pos + 12:eocd_pos + 16])[0]
+        cd_offset = struct.unpack('<I', tail_blob[eocd_pos + 16:eocd_pos + 20])[0]
+    except struct.error:
+        return None
+
+    # central directory offset is absolute in the *whole* file; convert
+    # to an offset relative to our tail_blob if it falls inside it
+    cd_start_in_blob = cd_offset - tail_offset
+    if cd_start_in_blob < 0:
+        # central directory isn't inside the fetched tail chunk at all
+        return None
+
+    pos = cd_start_in_blob
+    end = cd_start_in_blob + cd_size
+    while pos < end and pos < len(tail_blob) - 46:
+        if tail_blob[pos:pos + 4] != CDFH_SIG:
+            break
+        compression_method = struct.unpack('<H', tail_blob[pos + 10:pos + 12])[0]
+        compressed_size = struct.unpack('<I', tail_blob[pos + 20:pos + 24])[0]
+        name_len = struct.unpack('<H', tail_blob[pos + 28:pos + 30])[0]
+        extra_len = struct.unpack('<H', tail_blob[pos + 30:pos + 32])[0]
+        comment_len = struct.unpack('<H', tail_blob[pos + 32:pos + 34])[0]
+        local_header_offset = struct.unpack('<I', tail_blob[pos + 42:pos + 46])[0]
+        name = tail_blob[pos + 46:pos + 46 + name_len]
+
+        if name == b'META-INF/com/android/metadata':
+            return local_header_offset, compressed_size, compression_method, name.decode()
+
+        pos += 46 + name_len + extra_len + comment_len
+
+    return None
+
+
+def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
+                            chunk_bytes: int = 5 * 1024 * 1024) -> dict:
+    """
+    Fetch OTA package metadata (pre/post build fingerprints, security patch
+    level, timestamp, etc.) without downloading the whole file.
+
+    OTA zips store this as plain `key=value` lines inside
+    META-INF/com/android/metadata. Two independent strategies are used:
+
+    1. Naive scan: some packaging pipelines store this entry uncompressed
+       (STORED), so the plaintext bytes are directly greppable. Try this
+       on both a head chunk and a tail chunk first, since it's cheap.
+    2. Proper ZIP parsing: read the tail of the file (which contains the
+       End Of Central Directory + central directory), locate the exact
+       metadata entry, fetch just its bytes via Range, and inflate them
+       if they were stored with DEFLATE compression. This is the
+       reliable path, since the entry is very often deflate-compressed
+       and won't show up via a raw byte scan at all.
+    """
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    out = {
+        'found': False,
+        'fields': {},
+        'source': None,
+        'error': None,
+        'bytes_scanned': 0,
+    }
+    errors = []
+
+    def _get_range(range_header):
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'OTA-Prober/2.0',
+            'Accept-Encoding': 'identity',
+            'Range': range_header,
+        })
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            code = resp.getcode()
+            data = resp.read()
+            return code, data
+
+    def _head_size():
+        head_req = urllib.request.Request(url, method='HEAD', headers={
+            'User-Agent': 'OTA-Prober/2.0',
+            'Accept-Encoding': 'identity',
+        })
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(head_req, timeout=timeout, context=ctx) as resp:
+            return int(resp.headers.get('Content-Length', '0') or '0')
+
+    # ── Strategy 1a: naive scan of head chunk (works if STORED) ──────────
+    head_data = b''
+    try:
+        _s(f"Fetching first {chunk_bytes // 1024 // 1024} MiB…")
+        code, head_data = _get_range(f'bytes=0-{chunk_bytes - 1}')
+        out['bytes_scanned'] += len(head_data)
+        if code in (200, 206):
+            fields = _extract_metadata_kv(head_data, PAYLOAD_METADATA_PREFIXES)
+            if fields:
+                out['found'] = True
+                out['fields'] = fields
+                out['source'] = f'head raw scan ({len(head_data):,} bytes)'
+                return out
+    except Exception as e:
+        errors.append(f"Head fetch failed: {e}")
+
+    # ── Determine total size for tail fetch ───────────────────────────────
+    total_size = 0
+    try:
+        total_size = _head_size()
+    except Exception as e:
+        errors.append(f"HEAD size lookup failed: {e}")
+
+    tail_data = b''
+    tail_offset = 0
+    if total_size > 0:
+        try:
+            tail_offset = max(0, total_size - chunk_bytes)
+            _s(f"Fetching last {chunk_bytes // 1024 // 1024} MiB…")
+            code, tail_data = _get_range(f'bytes={tail_offset}-{total_size - 1}')
+            out['bytes_scanned'] += len(tail_data)
+        except Exception as e:
+            errors.append(f"Tail fetch failed: {e}")
+
+    # ── Strategy 1b: naive scan of tail chunk (works if STORED) ──────────
+    if tail_data:
+        fields = _extract_metadata_kv(tail_data, PAYLOAD_METADATA_PREFIXES)
+        if fields:
+            out['found'] = True
+            out['fields'] = fields
+            out['source'] = f'tail raw scan ({len(tail_data):,} bytes)'
+            return out
+
+    # ── Strategy 2: proper ZIP central-directory parse (handles DEFLATE) ──
+    if tail_data:
+        try:
+            _s("Parsing ZIP central directory…")
+            entry = _find_zip_metadata_entry(tail_data, tail_offset)
+            if entry:
+                local_header_offset, compressed_size, compression_method, name = entry
+
+                # local file header is 30 bytes + filename + extra field;
+                # figure out where actual entry data starts.
+                # If the local header happens to already be inside our
+                # tail_data chunk, slice it directly; otherwise fetch it.
+                lh_start_in_tail = local_header_offset - tail_offset
+                if 0 <= lh_start_in_tail and lh_start_in_tail + 30 <= len(tail_data):
+                    lh_blob = tail_data
+                    lh_pos = lh_start_in_tail
+                else:
+                    _s("Fetching local file header…")
+                    code, lh_blob = _get_range(
+                        f'bytes={local_header_offset}-{local_header_offset + 4096}')
+                    out['bytes_scanned'] += len(lh_blob)
+                    lh_pos = 0
+
+                if lh_blob[lh_pos:lh_pos + 4] == LFH_SIG:
+                    name_len = struct.unpack('<H', lh_blob[lh_pos + 26:lh_pos + 28])[0]
+                    extra_len = struct.unpack('<H', lh_blob[lh_pos + 28:lh_pos + 30])[0]
+                    data_start_in_lh_blob = lh_pos + 30 + name_len + extra_len
+
+                    if data_start_in_lh_blob + compressed_size <= len(lh_blob):
+                        entry_data = lh_blob[data_start_in_lh_blob:data_start_in_lh_blob + compressed_size]
+                    else:
+                        # need to fetch the entry bytes directly by absolute offset
+                        abs_data_start = local_header_offset + 30 + name_len + extra_len
+                        _s(f"Fetching {name} entry ({compressed_size} bytes)…")
+                        code, entry_data = _get_range(
+                            f'bytes={abs_data_start}-{abs_data_start + compressed_size - 1}')
+                        out['bytes_scanned'] += len(entry_data)
+
+                    if compression_method == 0:
+                        plain = entry_data
+                    elif compression_method == 8:
+                        try:
+                            plain = zlib.decompress(entry_data, -15)
+                        except Exception as e:
+                            errors.append(f"Inflate failed: {e}")
+                            plain = b''
+                    else:
+                        errors.append(f"Unsupported compression method {compression_method}")
+                        plain = b''
+
+                    if plain:
+                        fields = _extract_metadata_kv(plain, PAYLOAD_METADATA_PREFIXES)
+                        if fields:
+                            out['found'] = True
+                            out['fields'] = fields
+                            out['source'] = f'ZIP entry {name} (method={compression_method})'
+                            return out
+                        else:
+                            errors.append(
+                                "Metadata entry decoded but no known keys matched "
+                                f"(first 200 bytes: {plain[:200]!r})")
+                else:
+                    errors.append("Local file header signature mismatch")
+            else:
+                errors.append("META-INF/com/android/metadata not found in central directory "
+                               "(EOCD may be outside the fetched tail range, or file isn't a "
+                               "standard ZIP — could be a raw payload.bin or brotli-compressed OTA)")
+        except Exception as e:
+            errors.append(f"ZIP parse failed: {e}")
+    else:
+        errors.append("Could not fetch tail of file (unknown size or request failed)")
+
+    out['error'] = " | ".join(errors) if errors else "metadata not found in head or tail"
+    return out
+
+
+# ── Alternative filename prober (legacy May 2016 naming scheme) ─────────
+
+LEGACY_LASTMOD_PREFIX = "Mon, 16 May 2016"
+
+
+def _build_id_from_fingerprint(fingerprint: str):
+    """Return the build tag (e.g. 'BP1A.250505.005') and device codename
+    from a raw fingerprint string, or (None, None) if it doesn't parse."""
+    try:
+        parsed = parse_fingerprint(fingerprint)
+        return parsed['build_tag'], parsed['device']
+    except Exception:
+        return None, None
+
+
+def _extract_sha1_from_url(url: str):
+    """Pull the sha1-looking filename stem out of an OTA URL, e.g.
+    https://.../AbCdEf0123456789....zip -> AbCdEf0123456789..."""
+    path = urlparse(url).path
+    fname = path.rsplit('/', 1)[-1]
+    if fname.lower().endswith('.zip'):
+        fname = fname[:-4]
+    # strip any trailing ".XXXXXXXX" 8-char short-hash suffix if present,
+    # keep only the leading sha1-like token before the first dot
+    stem = fname.split('.')[0]
+    return stem
+
+
+def build_alternative_filenames(sha1: str, device: str, post_build_id: str,
+                                 pre_build_id: str, incremental: str):
+    """
+    Generate the candidate legacy (~May 2016 era) OTA filenames for either
+    the full-update naming scheme (pre+post build known) or the direct-OTA
+    naming scheme (only post-build/incremental known).
+    """
+    names = []
+    short = sha1[:8] if sha1 else ''
+
+    if pre_build_id and post_build_id:
+        names.append(f"{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}.zip")
+        names.append(f"{sha1}.Dotasigned-{device}-{post_build_id}-from-{pre_build_id}.zip")
+        names.append(f"{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}.{short}.zip")
+        names.append(f"{sha1}.signed-signed-{device}-{post_build_id}-from-{pre_build_id}.zip")
+        names.append(f"{sha1}.signed-signed-{device}-{post_build_id}-from-{pre_build_id}.{short}.zip")
+    elif post_build_id and incremental:
+        names.append(f"{sha1}.signed-{device}-ota-{incremental}.zip")
+        names.append(f"{sha1}.signed-signed{device}-ota-{incremental}.zip")
+
+    return names
+
+
+def check_alternative_ota_names(base_prefix: str, candidates: list, status_cb=None, timeout: int = 12):
+    """HEAD-check each candidate filename against base_prefix; return list
+    of (name, url, working: bool) tuples."""
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    results = []
+    for i, name in enumerate(candidates):
+        candidate_url = base_prefix + name
+        _s(f"Checking alternative {i+1}/{len(candidates)}…")
+        working = False
+        try:
+            req = urllib.request.Request(candidate_url, method='HEAD', headers={
+                'User-Agent': 'OTA-Prober/2.0',
+                'Accept-Encoding': 'identity',
+            })
+            ctx = ssl.create_default_context()
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                working = resp.getcode() in (200, 206)
+        except urllib.error.HTTPError as e:
+            working = e.code in (200, 206)
+        except Exception:
+            working = False
+        results.append((name, candidate_url, working))
+    return results
+
+
+def probe_alternative_filenames(url: str, last_modified: str,
+                                 pre_build_fingerprint: str, post_build_fingerprint: str,
+                                 status_cb=None, timeout: int = 12):
+    """
+    If the OTA link's Last-Modified date matches the legacy naming era
+    (Mon, 16 May 2016), try substituting a set of historically-known
+    filename patterns into the same directory and see which ones resolve
+    (HTTP 200/206) instead of 404. Also normalizes 'ota-api' to 'ota'
+    in the base URL, since that's the path form the legacy filenames use.
+
+    pre_build_fingerprint / post_build_fingerprint are the raw fingerprint
+    strings from the OTA link's precondition/postcondition fields (may be
+    empty). Returns a dict with 'checked', 'reason', and 'results' (list of
+    (name, url, working) tuples).
+    """
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    out = {'checked': False, 'reason': None, 'results': []}
+
+    if not last_modified or not last_modified.strip().startswith(LEGACY_LASTMOD_PREFIX):
+        out['reason'] = f"Last-Modified doesn't match legacy date ({LEGACY_LASTMOD_PREFIX})"
+        return out
+
+    post_build_id, device = _build_id_from_fingerprint(post_build_fingerprint) if post_build_fingerprint else (None, None)
+    pre_build_id, _ = _build_id_from_fingerprint(pre_build_fingerprint) if pre_build_fingerprint else (None, None)
+
+    if not device:
+        out['reason'] = "Could not determine device codename (post-build fingerprint missing or unparsable)"
+        return out
+
+    incremental = None
+    if post_build_fingerprint:
+        try:
+            incremental = parse_fingerprint(post_build_fingerprint)['incremental']
+        except Exception:
+            incremental = None
+
+    base_url = url
+    if 'ota-api' in base_url:
+        base_url = base_url.replace('ota-api', 'ota')
+
+    parsed = urlparse(base_url)
+    dir_path = parsed.path.rsplit('/', 1)[0] + '/'
+    base_prefix = f"{parsed.scheme}://{parsed.netloc}{dir_path}"
+    sha1 = _extract_sha1_from_url(base_url)
+
+    original_fname = parsed.path.rsplit('/', 1)[-1]
+
+    if '.signed-' in original_fname:
+        # The link already uses the signed-* naming scheme, so there's no
+        # need to brute-force every historical pattern — just strip
+        # whatever comes after the sha1 (keeping only the .zip extension)
+        # and check whether that trimmed-down name resolves on its own.
+        trimmed_name = f"{sha1}.zip"
+        candidates = [trimmed_name] if trimmed_name != original_fname else []
+        if not candidates:
+            out['reason'] = "Filename is already a bare sha1.zip — nothing to trim"
+            return out
+        out['checked'] = True
+        _s("Checking trimmed sha1.zip variant…")
+        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+        return out
+
+    candidates = build_alternative_filenames(sha1, device, post_build_id, pre_build_id, incremental)
+
+    if not candidates:
+        out['reason'] = "Not enough build info to construct candidate filenames"
+        return out
+
+    out['checked'] = True
+    _s(f"Checking {len(candidates)} alternative filename(s)…")
+    out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+    return out
+
+
+# ── HTTP Info prober ──────────────────────────────────────────────────────
+
+def probe_ota_url(url: str, status_cb=None, timeout: int = 15) -> dict:
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    results = []
+    for i, name in enumerate(candidates):
+        candidate_url = base_prefix + name
+        _s(f"Checking alternative {i+1}/{len(candidates)}…")
+        working = False
+        try:
+            req = urllib.request.Request(candidate_url, method='HEAD', headers={
+                'User-Agent': 'OTA-Prober/2.0',
+                'Accept-Encoding': 'identity',
+            })
+            ctx = ssl.create_default_context()
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                working = resp.getcode() in (200, 206)
+        except urllib.error.HTTPError as e:
+            working = e.code in (200, 206)
+        except Exception:
+            working = False
+        results.append((name, candidate_url, working))
+    return results
 
 
 # ── HTTP Info prober ──────────────────────────────────────────────────────
