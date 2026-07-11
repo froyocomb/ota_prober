@@ -5864,6 +5864,8 @@ def format_raw_response(raw_bytes):
 
 
 def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_York", mcc=None, mnc=None):
+    spoof_mobile_network = False # TODO: polish this
+
     try:
         parsed = parse_fingerprint(fingerprint)
     except ValueError as e:
@@ -5880,11 +5882,17 @@ def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_Yor
     tag = (1 << 3) | 2
     checkin += encode_varint(tag) + encode_varint(len(build)) + build
     checkin += encode_int64(2, 0)
-    checkin += encode_string(8, "WIFI::")
+    # Додаємо поля MCC та MNC, якщо вони задані
+    if mcc is not None and mnc is not None:
+        # https://github.com/doug-leith/android-protobuf-decoding/blob/a79e122881ea646b0cc964e379fbf00ef1cdb45e/checkin.proto
+        plmn = f"{mcc:03}{mnc:02}"
+        checkin += encode_string(6, plmn) # network
+        checkin += encode_string(7, plmn) # sim
+    checkin += encode_string(8, "mobile-notroaming" if spoof_mobile_network else "WIFI::")
     checkin += encode_int64(9, 0)
     checkin += encode_int64(14, 2)
     checkin += encode_bool(18, False)
-    checkin += encode_string(19, "WIFI")
+    checkin += encode_string(19, "LTE" if spoof_mobile_network else "WIFI")
 
     request = b''
     tag = (4 << 3) | 2
@@ -5896,11 +5904,6 @@ def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_Yor
     request += encode_int64(14, 3)
     request += encode_int64(20, 0)
     request += encode_int64(22, 0)
-
-    # Додаємо поля MCC (10) та MNC (11), якщо вони задані
-    if mcc is not None and mnc is not None:
-        request += encode_int64(10, mcc)
-        request += encode_int64(11, mnc)
 
     return request
 
