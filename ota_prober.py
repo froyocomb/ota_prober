@@ -489,7 +489,7 @@ class OTAProberGUI:
 
         # ── Scan Locales (для сканування ключів) ─────────────────────────
         ttk.Label(options_frame, text="Scan Locales (comma/space separated):", style='Normal.TLabel').grid(row=0, column=2, sticky=tk.W, padx=(20,5))
-        self.scan_locales_var = tk.StringVar(value="en-US,uk-UA")
+        self.scan_locales_var = tk.StringVar(value="en-US,uk-UA,zh-CN")
         scan_locales_entry = ttk.Entry(options_frame, textvariable=self.scan_locales_var, width=30)
         scan_locales_entry.grid(row=0, column=3, sticky=tk.W, padx=5)
 
@@ -2491,7 +2491,12 @@ LFH_SIG = b'PK\x03\x04'
 
 
 def _extract_metadata_kv(blob: bytes, prefixes) -> dict:
-    """Scan a byte blob for `key=value\\n` pairs matching the given prefixes."""
+    """
+    Narrow scan used against a *raw, mostly-binary* chunk (e.g. the tail of
+    a ZIP file before we've located/decompressed the actual metadata
+    entry). Only pulls out the known prefixes, to avoid picking up noise
+    from unrelated binary bytes that happen to contain '='.
+    """
     result = {}
     for prefix in prefixes:
         needle = f'{prefix}='.encode('utf-8')
@@ -2508,6 +2513,50 @@ def _extract_metadata_kv(blob: bytes, prefixes) -> dict:
             continue
         if value:
             result[prefix] = value
+    return result
+
+
+def _parse_all_metadata_lines(blob: bytes, known_prefixes) -> dict:
+    """
+    Full scan used against a *clean, decompressed* metadata text blob
+    (the actual contents of META-INF/com/android/metadata once we've
+    correctly located and inflated it). Parses every `key=value` line,
+    not just the ones in `known_prefixes`. Known keys are returned first,
+    in their listed order; every other key found in the file (ota-id,
+    ota-property-files, patch_type, version_name, wipe,
+    reserve-image-size, india-image-size, etc.) is appended afterwards, in
+    the order it appeared in the file, so nothing the file contains gets
+    silently dropped regardless of OEM-specific fields.
+    """
+    try:
+        text = blob.decode('utf-8', errors='replace')
+    except Exception:
+        return {}
+
+    all_lines = {}
+    order = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip('\r').strip()
+        if not line or '=' not in line:
+            continue
+        key, _, value = line.partition('=')
+        key = key.strip()
+        value = value.strip()
+        if not key or not value:
+            continue
+        if key not in all_lines:
+            order.append(key)
+        all_lines[key] = value
+
+    result = {}
+    for prefix in known_prefixes:
+        if prefix in all_lines:
+            result[prefix] = all_lines[prefix]
+
+    for key in order:
+        if key not in result:
+            result[key] = all_lines[key]
+
     return result
 
 
@@ -2557,23 +2606,24 @@ def _find_zip_metadata_entry(tail_blob: bytes, tail_offset: int):
 
 
 def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
-                            chunk_bytes: int = 5 * 1024 * 1024) -> dict:
+                            chunk_bytes: int = 2 * 1024 * 1024) -> dict:
     """
     Fetch OTA package metadata (pre/post build fingerprints, security patch
     level, timestamp, etc.) without downloading the whole file.
 
     OTA zips store this as plain `key=value` lines inside
-    META-INF/com/android/metadata. Two independent strategies are used:
+    META-INF/com/android/metadata, which lives near the end of the archive
+    (inside/near the central directory). Two strategies are used on the
+    tail chunk:
 
     1. Naive scan: some packaging pipelines store this entry uncompressed
-       (STORED), so the plaintext bytes are directly greppable. Try this
-       on both a head chunk and a tail chunk first, since it's cheap.
-    2. Proper ZIP parsing: read the tail of the file (which contains the
-       End Of Central Directory + central directory), locate the exact
-       metadata entry, fetch just its bytes via Range, and inflate them
-       if they were stored with DEFLATE compression. This is the
-       reliable path, since the entry is very often deflate-compressed
-       and won't show up via a raw byte scan at all.
+       (STORED), so the plaintext bytes are directly greppable.
+    2. Proper ZIP parsing: read the End Of Central Directory + central
+       directory from the tail chunk, locate the exact metadata entry,
+       fetch just its bytes, and inflate them if they were stored with
+       DEFLATE compression. This is the reliable path, since the entry is
+       very often deflate-compressed and won't show up via a raw byte
+       scan at all.
     """
     def _s(msg):
         if status_cb:
@@ -2609,22 +2659,6 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
         with urllib.request.urlopen(head_req, timeout=timeout, context=ctx) as resp:
             return int(resp.headers.get('Content-Length', '0') or '0')
 
-    # ── Strategy 1a: naive scan of head chunk (works if STORED) ──────────
-    head_data = b''
-    try:
-        _s(f"Fetching first {chunk_bytes // 1024 // 1024} MiB…")
-        code, head_data = _get_range(f'bytes=0-{chunk_bytes - 1}')
-        out['bytes_scanned'] += len(head_data)
-        if code in (200, 206):
-            fields = _extract_metadata_kv(head_data, PAYLOAD_METADATA_PREFIXES)
-            if fields:
-                out['found'] = True
-                out['fields'] = fields
-                out['source'] = f'head raw scan ({len(head_data):,} bytes)'
-                return out
-    except Exception as e:
-        errors.append(f"Head fetch failed: {e}")
-
     # ── Determine total size for tail fetch ───────────────────────────────
     total_size = 0
     try:
@@ -2643,7 +2677,7 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
         except Exception as e:
             errors.append(f"Tail fetch failed: {e}")
 
-    # ── Strategy 1b: naive scan of tail chunk (works if STORED) ──────────
+    # ── Strategy 1: naive scan of tail chunk (works if STORED) ──────────
     if tail_data:
         fields = _extract_metadata_kv(tail_data, PAYLOAD_METADATA_PREFIXES)
         if fields:
@@ -2703,7 +2737,7 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
                         plain = b''
 
                     if plain:
-                        fields = _extract_metadata_kv(plain, PAYLOAD_METADATA_PREFIXES)
+                        fields = _parse_all_metadata_lines(plain, PAYLOAD_METADATA_PREFIXES)
                         if fields:
                             out['found'] = True
                             out['fields'] = fields
