@@ -829,6 +829,412 @@ class OTAProberGUI:
         self.root.geometry("1000x950")
         self.root.configure(bg='#f0f0f0')
 
+        # ── Operator choices (MCC, MNC) ────────────────────────────────
+        self.operator_choices = {
+            # None
+            "None": (None, None),
+            # USA
+            "AT&T (US)": (310, 410),
+            "Verizon (US)": (311, 480),
+            "T-Mobile (US)": (310, 260),
+            "Sprint (US)": (310, 120),
+            "US Cellular": (311, 580),
+            "Cricket": (310, 150),
+            "MetroPCS": (310, 160),
+            "Boost Mobile": (311, 870),
+            "Virgin Mobile": (311, 490),
+            "Google Fi": (310, 260),  # T-Mobile
+            # Canada
+            "Bell Canada": (302, 610),
+            "Rogers": (302, 720),
+            "Telus": (302, 220),
+            "Freedom Mobile": (302, 490),
+            "Videotron": (302, 500),
+            "SaskTel": (302, 780),
+            "MTS": (302, 660),
+            # UK
+            "EE UK": (234, 30),
+            "O2 UK": (234, 10),
+            "Vodafone UK": (234, 15),
+            "Three UK": (234, 20),
+            "Tesco Mobile": (234, 10),  # O2 MVNO
+            "Virgin Mobile UK": (234, 30),  # EE MVNO
+            "BT Mobile": (234, 30),  # EE MVNO
+            "Giffgaff": (234, 10),  # O2 MVNO
+            # Germany
+            "Deutsche Telekom": (262, 1),
+            "Vodafone DE": (262, 2),
+            "O2 DE": (262, 7),
+            "E-Plus": (262, 3),
+            "1&1": (262, 17),
+            # France
+            "Orange FR": (208, 1),
+            "SFR": (208, 10),
+            "Bouygues": (208, 20),
+            "Free Mobile": (208, 15),
+            # Italy
+            "TIM IT": (222, 1),
+            "Vodafone IT": (222, 10),
+            "Wind Tre": (222, 88),
+            "Iliad": (222, 50),
+            # Spain
+            "Movistar": (214, 1),
+            "Vodafone ES": (214, 4),
+            "Orange ES": (214, 3),
+            "Yoigo": (214, 18),
+            # Australia
+            "Telstra AU": (505, 1),
+            "Optus AU": (505, 2),
+            "Vodafone AU": (505, 3),
+            "TPG": (505, 24),
+            # India
+            "Reliance Jio": (405, 875),
+            "Airtel IN": (404, 10),
+            "Vodafone Idea": (404, 30),
+            "BSNL": (404, 70),
+            "MTNL": (404, 50),
+            # China
+            "China Mobile": (460, 0),
+            "China Unicom": (460, 1),
+            "China Telecom": (460, 3),
+            # Japan
+            "NTT DoCoMo": (440, 10),
+            "KDDI": (440, 51),
+            "SoftBank": (440, 20),
+            "Rakuten": (440, 8),
+            # South Korea
+            "SK Telecom": (450, 5),
+            "KT": (450, 8),
+            "LGU+": (450, 6),
+            # Brazil
+            "Vivo": (724, 10),
+            "Claro": (724, 5),
+            "TIM BR": (724, 2),
+            "Oi": (724, 31),
+            "Algar": (724, 12),
+            # Mexico
+            "Telcel": (334, 20),
+            "Movistar MX": (334, 30),
+            "AT&T MX": (334, 10),
+            # South Africa
+            "Vodacom": (655, 1),
+            "MTN": (655, 10),
+            "Cell C": (655, 7),
+            "Telkom SA": (655, 13),
+            # Russia
+            "MTS RU": (250, 1),
+            "Megafon": (250, 2),
+            "Beeline": (250, 99),
+            "Tele2": (250, 20),
+            "Yota": (250, 38),
+            # Ukraine
+            "Kyivstar": (255, 3),
+            "Vodafone UA": (255, 1),
+            "Lifecell": (255, 5),
+            "Intertelecom": (255, 6),
+            # Poland
+            "Orange PL": (260, 3),
+            "T-Mobile PL": (260, 2),
+            "Plus": (260, 1),
+            "Play": (260, 6),
+            # Turkey
+            "Turkcell": (286, 1),
+            "Vodafone TR": (286, 2),
+            "Türk Telekom": (286, 3),
+            # Saudi Arabia
+            "STC": (420, 1),
+            "Mobily": (420, 3),
+            "Zain SA": (420, 4),
+            # UAE
+            "Etisalat": (424, 2),
+            "du": (424, 3),
+            # Singapore
+            "Singtel": (525, 1),
+            "StarHub": (525, 3),
+            "M1": (525, 2),
+            # Malaysia
+            "Maxis": (502, 12),
+            "Celcom": (502, 19),
+            "Digi": (502, 16),
+            "U Mobile": (502, 18),
+            # Indonesia
+            "Telkomsel": (510, 10),
+            "Indosat": (510, 1),
+            "XL Axiata": (510, 11),
+            "Smartfren": (510, 9),
+            "Tri": (510, 89),
+            # Philippines
+            "Globe": (515, 2),
+            "Smart": (515, 3),
+            "Sun Cellular": (515, 5),
+            # Thailand
+            "AIS": (520, 1),
+            "TrueMove": (520, 4),
+            "DTAC": (520, 18),
+            # Vietnam
+            "Viettel": (452, 4),
+            "Vinaphone": (452, 2),
+            "Mobifone": (452, 1),
+            # Argentina
+            "Claro AR": (722, 310),
+            "Movistar AR": (722, 7),
+            "Personal": (722, 34),
+            # Chile
+            "Entel": (730, 1),
+            "Movistar CL": (730, 3),
+            "Claro CL": (730, 4),
+            # Colombia
+            "Claro CO": (732, 101),
+            "Movistar CO": (732, 103),
+            "Tigo": (732, 102),
+            # Peru
+            "Claro PE": (716, 10),
+            "Movistar PE": (716, 6),
+            "Entel PE": (716, 17),
+            # Egypt
+            "Orange EG": (602, 1),
+            "Vodafone EG": (602, 2),
+            "Etisalat EG": (602, 3),
+            # Nigeria
+            "MTN NG": (621, 30),
+            "Glo": (621, 50),
+            "Airtel NG": (621, 20),
+            "9mobile": (621, 40),
+            # Kenya
+            "Safaricom": (639, 2),
+            "Airtel KE": (639, 3),
+            "Telkom KE": (639, 7),
+            # Pakistan
+            "Jazz": (410, 1),
+            "Telenor PK": (410, 6),
+            "Zong": (410, 4),
+            "Ufone": (410, 7),
+            # Bangladesh
+            "Grameenphone": (470, 1),
+            "Robi": (470, 2),
+            "Banglalink": (470, 3),
+            "Teletalk": (470, 4),
+            # New Zealand
+            "Spark NZ": (530, 5),
+            "Vodafone NZ": (530, 1),
+            "2degrees": (530, 24),
+            # Ireland
+            "Vodafone IE": (272, 1),
+            "O2 IE": (272, 2),
+            "Three IE": (272, 4),
+            "Eir": (272, 11),
+            # Portugal
+            "MEO": (268, 1),
+            "NOS": (268, 3),
+            "Vodafone PT": (268, 2),
+            # Netherlands
+            "KPN": (204, 8),
+            "Vodafone NL": (204, 4),
+            "T-Mobile NL": (204, 16),
+            "Tele2 NL": (204, 2),
+            # Belgium
+            "Proximus": (206, 1),
+            "Orange BE": (206, 10),
+            "Base": (206, 20),
+            # Austria
+            "A1": (232, 1),
+            "T-Mobile AT": (232, 3),
+            "Drei": (232, 5),
+            # Switzerland
+            "Swisscom": (228, 1),
+            "Sunrise": (228, 2),
+            "Salt": (228, 3),
+            # Sweden
+            "Telia": (240, 1),
+            "Tele2 SE": (240, 7),
+            "Telenor SE": (240, 6),
+            "3 SE": (240, 4),
+            # Norway
+            "Telenor NO": (242, 1),
+            "Telia NO": (242, 2),
+            "Ice": (242, 5),
+            # Denmark
+            "TDC": (238, 1),
+            "Telenor DK": (238, 2),
+            "3 DK": (238, 6),
+            # Finland
+            "Telia FI": (244, 91),
+            "Elisa": (244, 5),
+            "DNA": (244, 3),
+            # Greece
+            "Cosmote": (202, 1),
+            "Vodafone GR": (202, 5),
+            "Wind GR": (202, 9),
+            # Czech Republic
+            "O2 CZ": (230, 2),
+            "Vodafone CZ": (230, 3),
+            "T-Mobile CZ": (230, 1),
+            # Hungary
+            "Magyar Telekom": (216, 1),
+            "Telenor HU": (216, 30),
+            "Vodafone HU": (216, 70),
+            # Romania
+            "Orange RO": (226, 10),
+            "Vodafone RO": (226, 1),
+            "Telekom RO": (226, 5),
+            "Digi": (226, 5),  # similar
+            # Bulgaria
+            "A1 BG": (284, 1),
+            "Vivacom": (284, 5),
+            "Telenor BG": (284, 3),
+            # Serbia
+            "Telenor RS": (220, 1),
+            "Vip": (220, 5),
+            "MTS": (220, 3),
+            # Croatia
+            "T-Hrvatski": (219, 1),
+            "A1 HR": (219, 10),
+            "Tele2 HR": (219, 2),
+            # Slovenia
+            "Telekom SI": (293, 40),
+            "A1 SI": (293, 70),
+            "T-2": (293, 41),
+            # Slovakia
+            "T-Mobile SK": (231, 1),
+            "Orange SK": (231, 2),
+            "O2 SK": (231, 6),
+            # Lithuania
+            "Telia LT": (246, 1),
+            "Bitė": (246, 2),
+            "Tele2 LT": (246, 3),
+            # Latvia
+            "LMT": (247, 1),
+            "Tele2 LV": (247, 2),
+            "Bite": (247, 5),
+            # Estonia
+            "Telia EE": (248, 1),
+            "Elisa EE": (248, 2),
+            "Tele2 EE": (248, 3),
+            # Israel
+            "Pelephone": (425, 1),
+            "Cellcom": (425, 2),
+            "Partner": (425, 3),
+            "Golan Telecom": (425, 9),
+            # Iran
+            "MCI": (432, 11),
+            "MTN Irancell": (432, 35),
+            "RighTel": (432, 32),
+            # Iraq
+            "Zain IQ": (418, 30),
+            "AsiaCell": (418, 5),
+            "Korek": (418, 40),
+            # Kuwait
+            "Zain KW": (419, 2),
+            "Viva": (419, 3),
+            "Ooredoo": (419, 1),
+            # Qatar
+            "Ooredoo QA": (427, 1),
+            "Vodafone QA": (427, 2),
+            # Oman
+            "Omantel": (422, 1),
+            "Ooredoo OM": (422, 2),
+            # Bahrain
+            "Batelco": (426, 1),
+            "Zain BH": (426, 2),
+            # Lebanon
+            "Alfa": (415, 1),
+            "Touch": (415, 3),
+            # Jordan
+            "Orange JO": (416, 1),
+            "Zain JO": (416, 2),
+            "Umniah": (416, 3),
+            # Morocco
+            "Maroc Telecom": (604, 1),
+            "Orange MA": (604, 5),
+            "Inwi": (604, 1),  # actually
+            # Algeria
+            "Mobilis": (603, 1),
+            "Djezzy": (603, 2),
+            "Ooredoo DZ": (603, 3),
+            # Tunisia
+            "Tunisie Telecom": (605, 2),
+            "Orange TN": (605, 1),
+            "Ooredoo TN": (605, 3),
+            # Ghana
+            "MTN GH": (620, 1),
+            "Vodafone GH": (620, 2),
+            "AirtelTigo": (620, 3),
+            # Senegal
+            "Orange SN": (608, 1),
+            "Tigo": (608, 2),
+            "Expresso": (608, 3),
+            # Ivory Coast
+            "MTN CI": (612, 1),
+            "Orange CI": (612, 2),
+            "Moov": (612, 3),
+            # Cameroon
+            "MTN CM": (624, 1),
+            "Orange CM": (624, 2),
+            # Angola
+            "Unitel": (631, 2),
+            "Movicel": (631, 3),
+            # Zimbabwe
+            "Econet": (648, 1),
+            "NetOne": (648, 2),
+            "Telecel": (648, 3),
+            # Zambia
+            "MTN ZM": (645, 1),
+            "Airtel ZM": (645, 2),
+            "Zamtel": (645, 3),
+            # Mozambique
+            "Vodacom MZ": (643, 1),
+            "mCel": (643, 3),
+            # Uganda
+            "MTN UG": (641, 1),
+            "Airtel UG": (641, 2),
+            "Africell": (641, 3),
+            # Tanzania
+            "Vodacom TZ": (640, 1),
+            "Airtel TZ": (640, 2),
+            "Tigo": (640, 3),
+            "Zantel": (640, 4),
+            # Ethiopia (new)
+            "Ethio Telecom": (636, 1),
+            # Sri Lanka
+            "Dialog": (413, 2),
+            "Mobitel": (413, 3),
+            "Hutch": (413, 4),
+            # Nepal
+            "NTC": (429, 1),
+            "Ncell": (429, 2),
+            # Uzbekistan
+            "Ucell": (434, 1),
+            "Beeline UZ": (434, 2),
+            "MTS UZ": (434, 3),
+            # Kazakhstan
+            "Kcell": (401, 1),
+            "Beeline KZ": (401, 2),
+            "Tele2 KZ": (401, 3),
+            # Azerbaijan
+            "Azercell": (400, 1),
+            "Bakcell": (400, 2),
+            "Nar": (400, 3),
+            # Georgia
+            "Magti": (282, 1),
+            "Beeline GE": (282, 2),
+            "MTS GE": (282, 3),
+            # Armenia
+            "MTS AM": (283, 1),
+            "Beeline AM": (283, 2),
+            "Ucom": (283, 3),
+            # Moldova
+            "Orange MD": (259, 1),
+            "Moldcell": (259, 2),
+            "Unite": (259, 3),
+            # Belarus
+            "MTS BY": (257, 1),
+            "A1 BY": (257, 2),
+            "Life": (257, 3),
+            # Lithuania (already)
+            # ... і так далі
+        }
+        self.operator_var = tk.StringVar(value="None")
+
         self.setup_styles()
         self.create_widgets()
         self.query_thread = None
@@ -843,6 +1249,13 @@ class OTAProberGUI:
 
         # Підписка на зміну вкладки для приховування параметрів
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
+
+    def _parse_operator(self):
+        """Повертає (mcc, mnc) або (None, None) для поточного вибору оператора."""
+        name = self.operator_var.get().strip()
+        if name in self.operator_choices:
+            return self.operator_choices[name]
+        return (None, None)
 
     def _setup_layout_independent_shortcuts(self):
         """
@@ -920,12 +1333,12 @@ class OTAProberGUI:
         def on_key(event):
             if not (event.state & 0x4):
                 return
-            
+
             if event.keysym.lower() in ('c', 'v', 'x'):
                 return
 
             action = CTRL_CHARS.get(event.char)
-            
+
             w = get_focused_text_widget()
             if not w:
                 return
@@ -940,7 +1353,7 @@ class OTAProberGUI:
                 do_select_all(w)
             else:
                 return
-            
+
             return "break"
 
         self.root.bind_all('<Key>', on_key)
@@ -1026,7 +1439,7 @@ class OTAProberGUI:
             self.cros_appid_label, self.cros_appid_combo,
         ]
 
-        # ── Request Parameters (Locale & Timezone) ──────────────────────
+        # ── Request Parameters (Locale, Timezone, Operator) ──────────────
         self.params_frame = ttk.LabelFrame(main_frame, text="Request Parameters", padding="10")
         self.params_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
 
@@ -1045,7 +1458,13 @@ class OTAProberGUI:
         tz_combo['values'] = sorted(set(LOCALE_TZ_MAP.values()) | set(EXTRA_TZ))
         tz_combo.grid(row=0, column=3, sticky=tk.W, padx=5)
 
-        ttk.Button(self.params_frame, text="Set Default", command=self.reset_params).grid(row=0, column=4, padx=10)
+        # Operator (справа від Timezone)
+        ttk.Label(self.params_frame, text="Operator:", style='Normal.TLabel').grid(row=0, column=4, sticky=tk.W, padx=5)
+        self.operator_combo = ttk.Combobox(self.params_frame, textvariable=self.operator_var, width=20)
+        self.operator_combo['values'] = list(self.operator_choices.keys())
+        self.operator_combo.grid(row=0, column=5, sticky=tk.W, padx=5)
+
+        ttk.Button(self.params_frame, text="Set Default", command=self.reset_params).grid(row=0, column=6, padx=10)
 
         # ── Options ────────────────────────────────────────────────────────
         options_frame = ttk.LabelFrame(main_frame, text="Options", padding="10")
@@ -1499,6 +1918,7 @@ class OTAProberGUI:
     def reset_params(self):
         self.locale_var.set("en-US")
         self.timezone_var.set("America/New_York")
+        self.operator_var.set("None")
         self.update_status("Parameters reset to default", 'success')
 
     # ── Raw Response tab ───────────────────────────────────────────────────
@@ -2655,6 +3075,8 @@ class OTAProberGUI:
 
         is_cros = self.os_mode_var.get() == "chromeos"
         is_xiaomi = self.os_mode_var.get() == "xiaomi"
+        mcc, mnc = self._parse_operator()   # отримуємо оператора
+
         template = self.brute_fp_var.get().strip()
 
         if is_xiaomi:
@@ -2821,6 +3243,10 @@ class OTAProberGUI:
         self._brute_log(f"Starting bruteforce: {total} combinations", 'header')
         self._brute_log(f"Template: {template}", 'header')
         self._brute_log(f"Locales to test: {', '.join(locales)}", 'header')
+        if mcc is not None and mnc is not None:
+            self._brute_log(f"Operator: {self.operator_var.get()} (MCC={mcc}, MNC={mnc})", 'header')
+        else:
+            self._brute_log("Operator: None", 'header')
         self._brute_log("=" * 70, 'header')
 
         try:
@@ -2833,14 +3259,14 @@ class OTAProberGUI:
         self._brute_producer_thread = threading.Thread(
             target=self._brute_producer,
             args=(build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers,
-                  use_build, use_inc, use_key, locales),
+                  use_build, use_inc, use_key, locales, mcc, mnc),
             daemon=True
         )
         self._brute_producer_thread.start()
 
         self._brute_worker_threads = []
         for _ in range(n_workers):
-            t = threading.Thread(target=self._brute_worker, daemon=True)
+            t = threading.Thread(target=self._brute_worker, args=(mcc, mnc), daemon=True)
             t.start()
             self._brute_worker_threads.append(t)
 
@@ -2848,7 +3274,7 @@ class OTAProberGUI:
         self.root.after(500, self._brute_monitor)
 
     def _brute_producer(self, build_tags, key_types, inc_start, inc_end, inc_step, template, n_workers,
-                        use_build, use_inc, use_key, locales):
+                        use_build, use_inc, use_key, locales, mcc, mnc):
         try:
             builds = build_tags if use_build else [""]
             keys = key_types if use_key else [""]
@@ -2863,7 +3289,8 @@ class OTAProberGUI:
                         for loc in locales:
                             if self._brute_stop_flag:
                                 break
-                            self._brute_queue.put((bt, kt, str(inc) if use_inc else "", loc, template), block=True)
+                            # Передаємо також mcc, mnc у чергу, щоб worker міг їх використати
+                            self._brute_queue.put((bt, kt, str(inc) if use_inc else "", loc, template, mcc, mnc), block=True)
                         if self._brute_stop_flag:
                             break
                     if self._brute_stop_flag:
@@ -2874,7 +3301,7 @@ class OTAProberGUI:
             for _ in range(n_workers):
                 self._brute_queue.put(None)
 
-    def _brute_worker(self):
+    def _brute_worker(self, mcc, mnc):
         while True:
             self._brute_pause_event.wait()
             if self._brute_stop_flag:
@@ -2885,7 +3312,10 @@ class OTAProberGUI:
                 continue
             if item is None:
                 break
-            build_tag, key_type, inc, loc, template = item
+            build_tag, key_type, inc, loc, template, item_mcc, item_mnc = item
+            # Використовуємо оператора, переданого з черги (він такий самий, як у потоці, але залишимо так)
+            mcc_use = item_mcc if item_mcc is not None else mcc
+            mnc_use = item_mnc if item_mnc is not None else mnc
 
             fp = template
             if '{BUILD}' in template:
@@ -2894,7 +3324,6 @@ class OTAProberGUI:
                 fp = fp.replace('{INC}', inc)
             if '{KEY}' in template:
                 fp = fp.replace('{KEY}', key_type)
-            # {LOCALE} більше не замінюється
 
             # Отримуємо timezone для даного locale
             tz = LOCALE_TZ_MAP.get(loc, 'America/New_York')
@@ -2907,8 +3336,8 @@ class OTAProberGUI:
                 if self._brute_stop_flag:
                     break
                 try:
-                    # ЗАВЖДИ передаємо locale та timezone у запит
-                    settings, _raw = perform_checkin(fp, locale=loc, timezone=tz)
+                    # ЗАВЖДИ передаємо locale, timezone, оператора
+                    settings, _raw = perform_checkin(fp, locale=loc, timezone=tz, mcc=mcc_use, mnc=mnc_use)
                     if not settings:
                         if attempt == max_retries - 1:
                             self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → no response (after {max_retries} retries)", 'skip')
@@ -4063,15 +4492,17 @@ class OTAProberGUI:
             messagebox.showerror("Error", "Invalid fingerprint format")
             return
 
+        mcc, mnc = self._parse_operator()
+
         self.query_button.config(state=tk.DISABLED)
         self.keyscan_button.config(state=tk.DISABLED)
         self.clear_button.config(state=tk.DISABLED)
         self.fingerprint_entry.config(state=tk.DISABLED)
 
-        self.query_thread = threading.Thread(target=self.perform_query, args=(fingerprint,), daemon=True)
+        self.query_thread = threading.Thread(target=self.perform_query, args=(fingerprint, mcc, mnc), daemon=True)
         self.query_thread.start()
 
-    def perform_query(self, fingerprint):
+    def perform_query(self, fingerprint, mcc=None, mnc=None):
         mode = self.os_mode_var.get()
         if mode == "chromeos":
             self.perform_query_chromeos(fingerprint)
@@ -4097,7 +4528,7 @@ class OTAProberGUI:
             locale = self.locale_var.get().strip()
             timezone = self.timezone_var.get().strip()
 
-            settings, raw_bytes = perform_checkin(fingerprint, locale, timezone)
+            settings, raw_bytes = perform_checkin(fingerprint, locale, timezone, mcc, mnc)
 
             if not settings:
                 self.log_output("ERROR: Check-in failed - No response from server", 'error')
@@ -4122,6 +4553,7 @@ class OTAProberGUI:
                         'total_settings': len(settings),
                         'locale': locale,
                         'timezone': timezone,
+                        'operator': self.operator_var.get(),
                     }
                     output_str = json.dumps(json_data, indent=2)
                     self.log_output(output_str)
@@ -4148,6 +4580,7 @@ class OTAProberGUI:
                             'total_settings': len(settings),
                             'locale': locale,
                             'timezone': timezone,
+                            'operator': self.operator_var.get(),
                         }, indent=2)
                     else:
                         output_str = self.output_text.get(1.0, tk.END)
@@ -4452,6 +4885,7 @@ class OTAProberGUI:
         self.log_output(f"  Build Flavor:      {build_info['build_flavor']}", 'info')
         if not is_cros:
             self.log_output(f"  Security Keys:     {build_info['security_keys']}", 'info')
+            self.log_output(f"  Operator:          {self.operator_var.get()}", 'info')
 
         self.log_output("\n[SERVER RESPONSE]", 'section')
         if settings:
@@ -4583,6 +5017,8 @@ class OTAProberGUI:
             messagebox.showerror("Error", "Invalid fingerprint format")
             return
 
+        mcc, mnc = self._parse_operator()
+
         self.query_button.config(state=tk.DISABLED)
         self.keyscan_button.config(state=tk.DISABLED)
         self.clear_button.config(state=tk.DISABLED)
@@ -4590,7 +5026,7 @@ class OTAProberGUI:
         self.keyscan_stop_button.config(state=tk.NORMAL)
         self._keyscan_stop_event.clear()
 
-        self.keyscan_thread = threading.Thread(target=self.perform_keyscan, args=(fingerprint,), daemon=True)
+        self.keyscan_thread = threading.Thread(target=self.perform_keyscan, args=(fingerprint, mcc, mnc), daemon=True)
         self.keyscan_thread.start()
 
     def on_keyscan_stop_click(self):
@@ -4598,7 +5034,7 @@ class OTAProberGUI:
         self.keyscan_stop_button.config(state=tk.DISABLED)
         self.update_status("Stopping key scan…")
 
-    def perform_keyscan(self, fingerprint):
+    def perform_keyscan(self, fingerprint, mcc=None, mnc=None):
         try:
             self.output_text.delete(1.0, tk.END)
             self.raw_text.delete(1.0, tk.END)
@@ -4641,6 +5077,10 @@ class OTAProberGUI:
             self.log_output("=" * 75, 'header')
             self.log_output(f"Fingerprint base: {prefix}:", 'info')
             self.log_output(f"Locales: {', '.join(locales)}", 'info')
+            if mcc is not None and mnc is not None:
+                self.log_output(f"Operator: {self.operator_var.get()} (MCC={mcc}, MNC={mnc})", 'info')
+            else:
+                self.log_output("Operator: None", 'info')
             self.log_output("")
 
             found_links = []
@@ -4664,7 +5104,7 @@ class OTAProberGUI:
                     self.update_status(f"Scanning {key} with {loc} ({counter}/{total})...")
 
                     try:
-                        settings, raw_bytes = perform_checkin(test_fp, locale=loc, timezone=tz)
+                        settings, raw_bytes = perform_checkin(test_fp, locale=loc, timezone=tz, mcc=mcc, mnc=mnc)
                         if not settings:
                             self.log_output("  Status: ❌ No response from server", 'error')
                             continue
@@ -5423,7 +5863,7 @@ def format_raw_response(raw_bytes):
     return human_str, hex_str
 
 
-def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_York"):
+def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_York", mcc=None, mnc=None):
     try:
         parsed = parse_fingerprint(fingerprint)
     except ValueError as e:
@@ -5457,13 +5897,18 @@ def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_Yor
     request += encode_int64(20, 0)
     request += encode_int64(22, 0)
 
+    # Додаємо поля MCC (10) та MNC (11), якщо вони задані
+    if mcc is not None and mnc is not None:
+        request += encode_int64(10, mcc)
+        request += encode_int64(11, mnc)
+
     return request
 
 
-def perform_checkin(fingerprint, locale="en-US", timezone="America/New_York"):
+def perform_checkin(fingerprint, locale="en-US", timezone="America/New_York", mcc=None, mnc=None):
     try:
         parsed = parse_fingerprint(fingerprint)
-        request_data = build_checkin_request(fingerprint, locale, timezone)
+        request_data = build_checkin_request(fingerprint, locale, timezone, mcc, mnc)
         compressed = gzip.compress(request_data)
 
         url = 'https://android.googleapis.com/checkin'
