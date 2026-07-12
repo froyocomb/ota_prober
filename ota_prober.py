@@ -268,6 +268,30 @@ LOCALE_TZ_MAP = {
 }
 EXTRA_TZ = ['UTC', 'America/Los_Angeles', 'America/Chicago', 'America/Denver', 'Europe/London', 'Europe/Kiev', 'Europe/Moscow']
 
+# ── ChromiumOS board -> app-id (Omaha) known mapping ─────────────────────
+# Verified against real Omaha request/response pairs (jay0lee/chromeos-update-directory).
+# Not exhaustive - user can type a custom board/app-id/hwid triple as well.
+CROS_BOARD_APPID_MAP = {
+    'nocturne-signed-mpkeys': '{BD7F7139-CC18-49C1-A847-33F155CCBCA8}',
+    'hatch-signed-mp-v6keys': '{95EE134E-B47F-43FB-9835-32C276865F9A}',
+    'caroline-signed-mpkeys': '{C166AF52-7EE9-4F08-AAA7-B4B895A9F336}',
+    'octopus-signed-mp-v17keys': '{9A3BE5D2-C3DC-4AE6-9943-E2C113895DC5}',
+    'strongbad-signed-mp-v3keys': '{ABD68995-5A83-31CA-9AC6-49D8194EEA52}',
+    'daisy-signed-mp-v2keys': '{D851316B-7E57-4805-A7CE-01829AC14}',
+}
+# board -> a known-good generic hardware_class (the "NNNN" wildcard form works
+# for update checks; it does not need to match a real device exactly).
+CROS_BOARD_HWID_MAP = {
+    'nocturne-signed-mpkeys': 'NOCTURNE NNNN',
+    'hatch-signed-mp-v6keys': 'DRAGONAIR NNNN',
+    'caroline-signed-mpkeys': 'CAROLINE NNNN',
+    'octopus-signed-mp-v17keys': 'GRABBITER NNNN',
+    'strongbad-signed-mp-v3keys': 'COACHZ NNNN',
+    'daisy-signed-mp-v2keys': 'SNOW ELBERT A-E 4016',
+}
+CROS_TRACKS = ['stable-channel', 'beta-channel', 'dev-channel', 'canary-channel']
+CROS_AUSERVER = 'https://tools.google.com/service/update2'
+
 class OTAProberGUI:
     def __init__(self, root):
         self.root = root
@@ -434,13 +458,43 @@ class OTAProberGUI:
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        title = ttk.Label(main_frame, text="Android OTA Prober", style='Title.TLabel')
+        title_row = ttk.Frame(main_frame)
+        title_row.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
+
+        self.app_title_var = tk.StringVar(value="Android OTA Prober")
+        title = ttk.Label(title_row, textvariable=self.app_title_var, style='Title.TLabel')
         title.bind('<Button-1>', lambda e: messagebox.showinfo("RYuh", "hold on, im licking some bilds..."))
-        title.grid(row=0, column=0, columnspan=3, pady=(0, 20), sticky=tk.W)
+        title.pack(side=tk.LEFT)
+
+        # ── OS Mode Switch (Android / ChromeOS) — right next to the title ──
+        mode_frame = ttk.Frame(title_row)
+        mode_frame.pack(side=tk.LEFT, padx=(20, 0))
+
+        self.os_mode_var = tk.StringVar(value="android")
+        ttk.Radiobutton(mode_frame, text="Android", variable=self.os_mode_var,
+                        value="android", command=self._on_os_mode_changed).grid(row=0, column=0, padx=(0, 15))
+        ttk.Radiobutton(mode_frame, text="ChromeOS", variable=self.os_mode_var,
+                        value="chromeos", command=self._on_os_mode_changed).grid(row=0, column=1, padx=(0, 15))
+
+        self.cros_board_label = ttk.Label(mode_frame, text="Board preset:", style='Normal.TLabel')
+        self.cros_board_label.grid(row=0, column=2, sticky=tk.W, padx=(20, 5))
+        self.cros_board_preset_var = tk.StringVar(value=next(iter(CROS_BOARD_APPID_MAP.keys())))
+        self.cros_board_combo = ttk.Combobox(mode_frame, textvariable=self.cros_board_preset_var, width=26)
+        self.cros_board_combo['values'] = list(CROS_BOARD_APPID_MAP.keys()) + ['(custom)']
+        self.cros_board_combo.grid(row=0, column=3, sticky=tk.W, padx=5)
+        self.cros_board_combo.bind('<<ComboboxSelected>>', self._on_cros_board_preset_selected)
+
+        self.cros_appid_label = ttk.Label(mode_frame, text="App ID:", style='Normal.TLabel')
+        self.cros_appid_label.grid(row=0, column=4, sticky=tk.W, padx=(20, 5))
+        self.cros_appid_var = tk.StringVar(value=next(iter(CROS_BOARD_APPID_MAP.values())))
+        self.cros_appid_combo = ttk.Combobox(mode_frame, textvariable=self.cros_appid_var, width=40)
+        self.cros_appid_combo['values'] = list(CROS_BOARD_APPID_MAP.values())
+        self.cros_appid_combo.grid(row=0, column=5, sticky=tk.W, padx=5)
+        self.cros_appid_combo.configure(state='normal')  # editable, not readonly
 
         # ── Input Fingerprint ──────────────────────────────────────────────
         input_frame = ttk.LabelFrame(main_frame, text="Device Fingerprint", padding="10")
-        input_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        input_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
 
         ttk.Label(input_frame, text="Enter fingerprint:", style='Normal.TLabel').grid(row=0, column=0, sticky=tk.W, pady=5)
 
@@ -449,14 +503,21 @@ class OTAProberGUI:
         self.fingerprint_entry.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
         self.fingerprint_entry.insert(0, "google/shamu/shamu:5.1/LYZ28E/1858530:user/release-keys")
 
-        ttk.Label(input_frame, text="Format: oem/product/device:api/build_tag/incremental:build_type/key_type",
+        self.fingerprint_format_var = tk.StringVar(
+            value="Format: oem/product/device:api/build_tag/incremental:build_type/key_type")
+        ttk.Label(input_frame, textvariable=self.fingerprint_format_var,
                   style='Normal.TLabel', foreground='#666666').grid(row=2, column=0, sticky=tk.W)
 
         input_frame.columnconfigure(0, weight=1)
+        self._cros_appid_row_widgets = [self.cros_appid_combo]
+        self._cros_only_widgets = [
+            self.cros_board_label, self.cros_board_combo,
+            self.cros_appid_label, self.cros_appid_combo,
+        ]
 
         # ── Request Parameters (Locale & Timezone) ──────────────────────
         self.params_frame = ttk.LabelFrame(main_frame, text="Request Parameters", padding="10")
-        self.params_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        self.params_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
 
         ttk.Label(self.params_frame, text="Locale:", style='Normal.TLabel').grid(row=0, column=0, sticky=tk.W, padx=5)
         self.locale_var = tk.StringVar(value="en-US")
@@ -477,7 +538,7 @@ class OTAProberGUI:
 
         # ── Options ────────────────────────────────────────────────────────
         options_frame = ttk.LabelFrame(main_frame, text="Options", padding="10")
-        options_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        options_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
 
         self.json_var = tk.BooleanVar(value=False)
         self.json_check = ttk.Checkbutton(options_frame, text="Output as JSON", variable=self.json_var)
@@ -488,20 +549,22 @@ class OTAProberGUI:
         self.save_check.grid(row=0, column=1, sticky=tk.W, padx=5)
 
         # ── Scan Locales (для сканування ключів) ─────────────────────────
-        ttk.Label(options_frame, text="Scan Locales (comma/space separated):", style='Normal.TLabel').grid(row=0, column=2, sticky=tk.W, padx=(20,5))
+        self.scan_locales_label = ttk.Label(options_frame, text="Scan Locales (comma/space separated):", style='Normal.TLabel')
+        self.scan_locales_label.grid(row=0, column=2, sticky=tk.W, padx=(20,5))
         self.scan_locales_var = tk.StringVar(value="en-US,uk-UA,zh-CN")
-        scan_locales_entry = ttk.Entry(options_frame, textvariable=self.scan_locales_var, width=30)
-        scan_locales_entry.grid(row=0, column=3, sticky=tk.W, padx=5)
+        self.scan_locales_entry = ttk.Entry(options_frame, textvariable=self.scan_locales_var, width=30)
+        self.scan_locales_entry.grid(row=0, column=3, sticky=tk.W, padx=5)
 
         # ── Buttons ──────────────────────────────────────────────────────
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        button_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
 
         self.query_button = ttk.Button(button_frame, text="Query Device", command=self.on_query_click)
         self.query_button.pack(side=tk.LEFT, padx=5)
 
         self.keyscan_button = ttk.Button(button_frame, text="Scan Key Types", command=self.on_keyscan_click)
         self.keyscan_button.pack(side=tk.LEFT, padx=5)
+        self._keyscan_button_pack_info = {'side': tk.LEFT, 'padx': 5}
 
         self.clear_button = ttk.Button(button_frame, text="Clear Output", command=self.on_clear_click)
         self.clear_button.pack(side=tk.LEFT, padx=5)
@@ -511,11 +574,11 @@ class OTAProberGUI:
 
         self.status_var = tk.StringVar(value="Ready")
         self.status_label = ttk.Label(main_frame, textvariable=self.status_var, foreground='#0066cc', style='Normal.TLabel')
-        self.status_label.grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=(0, 10))
+        self.status_label.grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=(0, 10))
 
         # ── Results Notebook ──────────────────────────────────────────────
         output_frame = ttk.LabelFrame(main_frame, text="Results", padding="10")
-        output_frame.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
+        output_frame.grid(row=7, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 0))
 
         header_frame = ttk.Frame(output_frame)
         header_frame.pack(fill=tk.X, pady=(0, 10))
@@ -524,12 +587,12 @@ class OTAProberGUI:
         self.status_icon_label = ttk.Label(header_frame, textvariable=self.status_icon_var, font=('Arial', 16))
         self.status_icon_label.pack(side=tk.LEFT, padx=(0, 10))
 
-        self.ota_link_label = ttk.Label(header_frame, text="", font=('Courier', 10))
-        self.ota_link_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self.ota_link_label.bind('<Button-1>', self.on_header_link_click)
-
         self.copy_link_button = ttk.Button(header_frame, text="Copy link", command=self.on_copy_link_click, state=tk.DISABLED)
         self.copy_link_button.pack(side=tk.RIGHT, padx=(10, 0))
+
+        self.ota_link_label = ttk.Label(header_frame, text="", font=('Courier', 10), anchor=tk.W)
+        self.ota_link_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.ota_link_label.bind('<Button-1>', self.on_header_link_click)
 
         self.notebook = ttk.Notebook(output_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
@@ -604,16 +667,164 @@ class OTAProberGUI:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(6, weight=1)
+        main_frame.rowconfigure(7, weight=1)
+
+        # Apply initial visibility (Android is the default OS mode)
+        self._set_os_mode_visibility()
 
     # ── Обробник зміни вкладки (приховування/показ параметрів) ──────────
+    def _set_ota_link_header(self, url, max_chars=110):
+        display = url
+        if len(display) > max_chars:
+            head = max_chars * 2 // 3
+            tail = max_chars - head - 1
+            display = f"{display[:head]}…{display[-tail:]}"
+        self.ota_link_label.config(text=f"🔗 {display}", foreground='#0066cc')
+
     def _on_tab_changed(self, event):
         current = self.notebook.index(self.notebook.select())
         tab_text = self.notebook.tab(current, "text")
-        if tab_text == "Bruteforce":
+        is_cros = self.os_mode_var.get() == "chromeos"
+        if tab_text == "Bruteforce" or is_cros:
             self.params_frame.grid_remove()   # ховаємо
         else:
             self.params_frame.grid()          # показуємо
+
+    def _on_cros_board_preset_selected(self, event):
+        board = self.cros_board_preset_var.get().strip()
+        if board == '(custom)' or board not in CROS_BOARD_APPID_MAP:
+            return
+        app_id = CROS_BOARD_APPID_MAP[board]
+        hwid = CROS_BOARD_HWID_MAP.get(board, 'NNNN')
+        self.cros_appid_var.set(app_id)
+        track = 'stable-channel'
+        # keep current track if already ChromiumOS-formatted, else default
+        current = self.fingerprint_var.get().strip()
+        try:
+            parsed = parse_fingerprint_chromeos(current)
+            track = parsed['track']
+        except Exception:
+            pass
+        self.fingerprint_var.set(f"{board}/0.0.0.0:{track}/{hwid}")
+
+    # ── OS mode switch (Android <-> ChromiumOS) ───────────────────────────
+    def _on_os_mode_changed(self):
+        self._set_os_mode_visibility()
+        if self.os_mode_var.get() == "chromeos":
+            self.app_title_var.set("ChromeOS OTA Prober")
+            self.fingerprint_var.set("nocturne-signed-mpkeys/0.0.0.0:stable-channel/NOCTURNE NNNN")
+            self.fingerprint_format_var.set("Format: board/version:track/hwid  (use version 0.0.0.0 to force the latest update; track: stable-channel/beta-channel/dev-channel/canary-channel)")
+        else:
+            self.app_title_var.set("Android OTA Prober")
+            self.fingerprint_var.set("google/shamu/shamu:5.1/LYZ28E/1858530:user/release-keys")
+            self.fingerprint_format_var.set("Format: oem/product/device:api/build_tag/incremental:build_type/key_type")
+        if hasattr(self, 'brute_bt_lf'):
+            self._set_brute_os_mode()
+
+    # ── Bruteforce tab: adapt fields to the selected OS mode ─────────────
+    def _set_brute_os_mode(self):
+        is_cros = self.os_mode_var.get() == "chromeos"
+        if is_cros:
+            self.brute_fp_hint_var.set("Use {BOARD}, {VER} and {TRACK} as placeholders:")
+            self.brute_fp_legend_var.set("{BOARD} = board name   {VER} = version   {TRACK} = update track")
+            if self.brute_fp_var.get() == "google/baracus/baracus:6.0/{BUILD}/{INC}:{KEY}":
+                self.brute_fp_var.set("{BOARD}/{VER}:{TRACK}/NOCTURNE NNNN")
+
+            self.brute_bt_lf.configure(text="Board Tags")
+            if self.brute_tags_text.get("1.0", tk.END).strip() == "MRTA.181211.008":
+                self.brute_tags_text.delete("1.0", tk.END)
+                self.brute_tags_text.insert(tk.END, "nocturne-signed-mpkeys")
+
+            self.brute_kt_lf.configure(text="Tracks")
+            if self.brute_keys_text.get("1.0", tk.END).strip() == "user/release-keys\nuser/test-keys":
+                self.brute_keys_text.delete("1.0", tk.END)
+                self.brute_keys_text.insert(tk.END, "\n".join(CROS_TRACKS))
+
+            self.brute_loc_lf.grid_remove()
+
+            self.brute_inc_lf.configure(text="Version Range")
+            self.brute_inc_row_labels[0].config(text="Base:")
+            if self.brute_inc_start_var.get() == "370000":
+                self.brute_inc_start_var.set("0")
+            if self.brute_inc_end_var.get() == "400000":
+                self.brute_inc_end_var.set("0")
+
+            self.brute_appid_row.pack(fill=tk.X, pady=(4, 0))
+        else:
+            self.brute_fp_hint_var.set("Use {BUILD}, {INC} and {KEY} as placeholders:")
+            self.brute_fp_legend_var.set("{BUILD} = build ID   {INC} = incremental   {KEY} = key type")
+            if self.brute_fp_var.get() == "{BOARD}/{VER}:{TRACK}/NOCTURNE NNNN":
+                self.brute_fp_var.set("google/baracus/baracus:6.0/{BUILD}/{INC}:{KEY}")
+
+            self.brute_bt_lf.configure(text="Build Tags")
+            if self.brute_tags_text.get("1.0", tk.END).strip() == "nocturne-signed-mpkeys":
+                self.brute_tags_text.delete("1.0", tk.END)
+                self.brute_tags_text.insert(tk.END, "MRTA.181211.008")
+
+            self.brute_kt_lf.configure(text="Key Types")
+            if self.brute_keys_text.get("1.0", tk.END).strip() == "\n".join(CROS_TRACKS):
+                self.brute_keys_text.delete("1.0", tk.END)
+                self.brute_keys_text.insert(tk.END, "user/release-keys\nuser/test-keys")
+
+            self.brute_loc_lf.grid()
+
+            self.brute_inc_lf.configure(text="Incremental Range")
+            self.brute_inc_row_labels[0].config(text="Start:")
+            if self.brute_inc_start_var.get() == "0":
+                self.brute_inc_start_var.set("370000")
+            if self.brute_inc_end_var.get() == "0":
+                self.brute_inc_end_var.set("400000")
+
+            self.brute_appid_row.pack_forget()
+
+    def _set_os_mode_visibility(self):
+        is_cros = self.os_mode_var.get() == "chromeos"
+
+        # Show/hide Board preset + App ID (ChromeOS only) — bug 1
+        for w in self._cros_only_widgets:
+            if is_cros:
+                w.grid()
+            else:
+                w.grid_remove()
+
+        # Show/hide the "Scan Key Types" button (Android only) — bug 2
+        if is_cros:
+            self.keyscan_button.pack_forget()
+        else:
+            if not self.keyscan_button.winfo_ismapped():
+                self.keyscan_button.pack(before=self.clear_button, **self._keyscan_button_pack_info)
+
+        # Show/hide the "Scan Locales" row (Android only) — bug 2
+        if is_cros:
+            self.scan_locales_label.grid_remove()
+            self.scan_locales_entry.grid_remove()
+        else:
+            self.scan_locales_label.grid()
+            self.scan_locales_entry.grid()
+
+        # Show/hide Payload Metadata / Alternative Filenames sub-tabs
+        # inside the HTTP Info tab (Android only) — bug 4
+        if hasattr(self, '_cros_hidden_httpinfo_tabs'):
+            for frame, tab_text in self._cros_hidden_httpinfo_tabs:
+                tab_ids = self.httpinfo_nb.tabs()
+                frame_id = str(frame)
+                if is_cros:
+                    if frame_id in tab_ids:
+                        self.httpinfo_nb.hide(frame)
+                else:
+                    if frame_id in tab_ids:
+                        self.httpinfo_nb.add(frame, text=tab_text)
+
+        # Locale/Timezone params only make sense for Android checkin — bug 3
+        # (delegate to the same logic used on tab change so behaviour stays
+        # consistent no matter which tab triggers the visibility update)
+        if hasattr(self, 'notebook'):
+            self._on_tab_changed(None)
+        else:
+            if is_cros:
+                self.params_frame.grid_remove()
+            else:
+                self.params_frame.grid()
 
     # ── Locale ↔ Timezone auto-fill ──────────────────────────────────────
     def _on_locale_selected(self, event):
@@ -838,6 +1049,10 @@ class OTAProberGUI:
         self._httpinfo_metadata_loaded = False
         self._httpinfo_altnames_loaded = False
         self._httpinfo_pending_jobs = 0
+        self._cros_hidden_httpinfo_tabs = [
+            (meta_f, "Payload Metadata"),
+            (alt_f, "Alternative Filenames"),
+        ]
 
     def _httpinfo_start(self):
         url = self.httpinfo_url_var.get().strip()
@@ -1012,55 +1227,68 @@ class OTAProberGUI:
 
         fp_lf = ttk.LabelFrame(wrapper, text="Fingerprint Template", padding="6")
         fp_lf.pack(fill=tk.X, pady=(0, 6))
-        ttk.Label(fp_lf, text="Use {BUILD}, {INC} and {KEY} as placeholders:").pack(anchor=tk.W)   # видалено {LOCALE}
+        self.brute_fp_hint_var = tk.StringVar(value="Use {BUILD}, {INC} and {KEY} as placeholders:")
+        ttk.Label(fp_lf, textvariable=self.brute_fp_hint_var).pack(anchor=tk.W)
         self.brute_fp_var = tk.StringVar(
             value="google/baracus/baracus:6.0/{BUILD}/{INC}:{KEY}"
         )
         ttk.Entry(fp_lf, textvariable=self.brute_fp_var, font=('Courier', 9)).pack(fill=tk.X, pady=3)
-        ttk.Label(fp_lf, text="{BUILD} = build ID   {INC} = incremental   {KEY} = key type",
-                  foreground='#666666').pack(anchor=tk.W)
+        self.brute_fp_legend_var = tk.StringVar(value="{BUILD} = build ID   {INC} = incremental   {KEY} = key type")
+        ttk.Label(fp_lf, textvariable=self.brute_fp_legend_var, foreground='#666666').pack(anchor=tk.W)
+
+        # App ID row — ChromeOS only (fixed per-board, but editable like the main tab)
+        self.brute_appid_row = ttk.Frame(fp_lf)
+        ttk.Label(self.brute_appid_row, text="App ID:").pack(side=tk.LEFT, padx=(0, 6))
+        self.brute_appid_var = tk.StringVar(value=next(iter(CROS_BOARD_APPID_MAP.values())))
+        ttk.Entry(self.brute_appid_row, textvariable=self.brute_appid_var, font=('Courier', 9), width=45).pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         mid = ttk.Frame(wrapper)
         mid.pack(fill=tk.X, pady=(0, 6))
-        mid.columnconfigure(0, weight=3)   # Build Tags
-        mid.columnconfigure(1, weight=3)   # Key Types
-        mid.columnconfigure(2, weight=1)   # Locales
-        mid.columnconfigure(3, weight=0)   # Incremental
+        mid.columnconfigure(0, weight=3)   # Build/Board Tags
+        mid.columnconfigure(1, weight=3)   # Key Types/Track
+        mid.columnconfigure(2, weight=1)   # Locales (Android only)
+        mid.columnconfigure(3, weight=0)   # Incremental/Version Range
 
-        # Build Tags
-        bt_lf = ttk.LabelFrame(mid, text="Build Tags", padding="6")
-        bt_lf.grid(row=0, column=0, sticky=tk.NSEW, padx=(0, 6))
-        self.brute_tags_text = tk.Text(bt_lf, height=4, font=('Courier', 9))
+        # Build Tags (Android) / Board Tags (ChromeOS)
+        self.brute_bt_lf = ttk.LabelFrame(mid, text="Build Tags", padding="6")
+        self.brute_bt_lf.grid(row=0, column=0, sticky=tk.NSEW, padx=(0, 6))
+        self.brute_tags_text = tk.Text(self.brute_bt_lf, height=4, font=('Courier', 9))
         self.brute_tags_text.pack(fill=tk.BOTH, expand=True)
         self.brute_tags_text.insert(tk.END, "MRTA.181211.008")
 
-        # Key Types
-        kt_lf = ttk.LabelFrame(mid, text="Key Types", padding="6")
-        kt_lf.grid(row=0, column=1, sticky=tk.NSEW, padx=(0, 6))
-        self.brute_keys_text = tk.Text(kt_lf, height=4, font=('Courier', 9))
+        # Key Types (Android) / Track (ChromeOS)
+        self.brute_kt_lf = ttk.LabelFrame(mid, text="Key Types", padding="6")
+        self.brute_kt_lf.grid(row=0, column=1, sticky=tk.NSEW, padx=(0, 6))
+        self.brute_keys_text = tk.Text(self.brute_kt_lf, height=4, font=('Courier', 9))
         self.brute_keys_text.pack(fill=tk.BOTH, expand=True)
         self.brute_keys_text.insert(tk.END,
             "user/release-keys\nuser/test-keys")
 
-        # Locales (тепер у колонці 2)
-        loc_lf = ttk.LabelFrame(mid, text="Locales", padding="6")
-        loc_lf.grid(row=0, column=2, sticky=tk.NSEW, padx=(0, 6))
-        self.brute_locales_text = tk.Text(loc_lf, height=4, font=('Courier', 9))
+        # Locales (Android only — не потрібні для ChromeOS)
+        self.brute_loc_lf = ttk.LabelFrame(mid, text="Locales", padding="6")
+        self.brute_loc_lf.grid(row=0, column=2, sticky=tk.NSEW, padx=(0, 6))
+        self.brute_locales_text = tk.Text(self.brute_loc_lf, height=4, font=('Courier', 9))
         self.brute_locales_text.pack(fill=tk.BOTH, expand=True)
         self.brute_locales_text.insert(tk.END, "en-US\nuk-UA\nru-RU")
 
-        # Incremental Range (тепер у колонці 3)
-        inc_lf = ttk.LabelFrame(mid, text="Incremental Range", padding="6")
-        inc_lf.grid(row=0, column=3, sticky=tk.NSEW)
-        inc_lf.columnconfigure(1, weight=1)
+        # Incremental Range (Android) / Version Range (ChromeOS)
+        self.brute_inc_lf = ttk.LabelFrame(mid, text="Incremental Range", padding="6")
+        self.brute_inc_lf.grid(row=0, column=3, sticky=tk.NSEW)
+        self.brute_inc_lf.columnconfigure(1, weight=1)
         self.brute_inc_start_var = tk.StringVar(value="370000")
         self.brute_inc_end_var = tk.StringVar(value="400000")
         self.brute_inc_step_var = tk.StringVar(value="1")
+        self.brute_inc_row_labels = []
+        self.brute_inc_row_entries = []
         for row_i, (lbl, var) in enumerate(zip(
                 ["Start:", "End:", "Step:"],
                 [self.brute_inc_start_var, self.brute_inc_end_var, self.brute_inc_step_var])):
-            ttk.Label(inc_lf, text=lbl).grid(row=row_i, column=0, sticky=tk.W, pady=3)
-            ttk.Entry(inc_lf, textvariable=var, width=12).grid(row=row_i, column=1, sticky=tk.EW, padx=(6, 0), pady=3)
+            l = ttk.Label(self.brute_inc_lf, text=lbl)
+            l.grid(row=row_i, column=0, sticky=tk.W, pady=3)
+            e = ttk.Entry(self.brute_inc_lf, textvariable=var, width=12)
+            e.grid(row=row_i, column=1, sticky=tk.EW, padx=(6, 0), pady=3)
+            self.brute_inc_row_labels.append(l)
+            self.brute_inc_row_entries.append(e)
 
         # Options
         opt_lf = ttk.LabelFrame(wrapper, text="Options", padding="6")
@@ -1092,6 +1320,7 @@ class OTAProberGUI:
         self._brute_running = False
 
         self._brute_log_buffer = []
+        self._set_brute_os_mode()
 
     # ── Bruteforce log window ─────────────────────────────────────────────
     def _open_brute_log_window(self):
@@ -1121,6 +1350,7 @@ class OTAProberGUI:
         for line, tag in self._brute_log_buffer:
             text.insert(tk.END, line + '\n', tag)
         text.see(tk.END)
+        text.config(state=tk.DISABLED)
 
         self._brute_log_window = win
         self._brute_log_text = text
@@ -1134,13 +1364,17 @@ class OTAProberGUI:
     def _brute_log(self, msg, tag='info'):
         self._brute_log_buffer.append((msg, tag))
         if self._brute_log_text and self._brute_log_window and self._brute_log_window.winfo_exists():
+            self._brute_log_text.config(state=tk.NORMAL)
             self._brute_log_text.insert(tk.END, msg + '\n', tag)
             self._brute_log_text.see(tk.END)
+            self._brute_log_text.config(state=tk.DISABLED)
 
     def _brute_clear_log(self):
         self._brute_log_buffer.clear()
         if self._brute_log_text and self._brute_log_window and self._brute_log_window.winfo_exists():
+            self._brute_log_text.config(state=tk.NORMAL)
             self._brute_log_text.delete(1.0, tk.END)
+            self._brute_log_text.config(state=tk.DISABLED)
 
     def _brute_pause(self):
         if not self._brute_running:
@@ -1175,7 +1409,96 @@ class OTAProberGUI:
             self._brute_stop()
             time.sleep(0.2)
 
+        is_cros = self.os_mode_var.get() == "chromeos"
         template = self.brute_fp_var.get().strip()
+
+        if is_cros:
+            use_board = '{BOARD}' in template
+            use_ver = '{VER}' in template
+            use_track = '{TRACK}' in template
+            app_id = self.brute_appid_var.get().strip()
+
+            raw_tags = self.brute_tags_text.get("1.0", tk.END).strip()
+            board_tags = [t.strip() for t in raw_tags.splitlines() if t.strip()]
+            if not board_tags:
+                board_tags = ["nocturne-signed-mpkeys"] if use_board else [""]
+
+            raw_tracks = self.brute_keys_text.get("1.0", tk.END).strip()
+            tracks = [t.strip() for t in raw_tracks.splitlines() if t.strip()]
+            if not tracks:
+                tracks = ["stable-channel"] if use_track else [""]
+
+            locales = [""]  # локалі не використовуються для ChromeOS
+
+            try:
+                inc_start_str = self.brute_inc_start_var.get().strip()
+                inc_end_str = self.brute_inc_end_var.get().strip()
+                inc_step_str = self.brute_inc_step_var.get().strip()
+                if inc_start_str and inc_end_str and use_ver:
+                    inc_start = int(inc_start_str)
+                    inc_end = int(inc_end_str)
+                    inc_step = int(inc_step_str) if inc_step_str else 1
+                    if inc_step <= 0:
+                        inc_step = 1
+                else:
+                    inc_start, inc_end, inc_step = 0, 0, 1
+            except ValueError:
+                inc_start, inc_end, inc_step = 0, 0, 1
+
+            inc_count = (inc_end - inc_start) // inc_step + 1 if use_ver else 1
+            build_count = len(board_tags) if use_board else 1
+            key_count = len(tracks) if use_track else 1
+            locale_count = 1
+            total = build_count * key_count * inc_count * locale_count
+            if total == 0:
+                total = 1
+
+            self._brute_stop_flag = False
+            self._brute_pause_event.set()
+            self._brute_found_data.clear()
+            self._brute_found_count = 0
+            self._brute_processed = 0
+            self._brute_total = total
+
+            self._brute_clear_log()
+
+            self.brute_start_btn.config(state=tk.DISABLED)
+            self.brute_pause_btn.config(state=tk.NORMAL)
+            self.brute_continue_btn.config(state=tk.DISABLED)
+            self.brute_stop_btn.config(state=tk.NORMAL)
+            self.brute_progress['maximum'] = total
+            self.brute_progress['value'] = 0
+
+            self._brute_log(f"Starting ChromeOS bruteforce: {total} combinations", 'header')
+            self._brute_log(f"Template: {template}", 'header')
+            self._brute_log(f"App ID: {app_id}", 'header')
+            self._brute_log("=" * 70, 'header')
+
+            try:
+                n_workers = max(1, min(1000, int(self.brute_workers_var.get())))
+            except ValueError:
+                n_workers = 10
+
+            self._brute_queue = queue.Queue(maxsize=n_workers * 2)
+
+            self._brute_producer_thread = threading.Thread(
+                target=self._brute_producer_chromeos,
+                args=(board_tags, tracks, inc_start, inc_end, inc_step, template, n_workers,
+                      use_board, use_ver, use_track, app_id),
+                daemon=True
+            )
+            self._brute_producer_thread.start()
+
+            self._brute_worker_threads = []
+            for _ in range(n_workers):
+                t = threading.Thread(target=self._brute_worker_chromeos, daemon=True)
+                t.start()
+                self._brute_worker_threads.append(t)
+
+            self._brute_running = True
+            self.root.after(500, self._brute_monitor)
+            return
+
         use_build = '{BUILD}' in template
         use_inc = '{INC}' in template
         use_key = '{KEY}' in template
@@ -1363,6 +1686,80 @@ class OTAProberGUI:
                 f"[{self._brute_processed}/{self._brute_total}]  "
                 f"found={self._brute_found_count} keys, unique={len(self._brute_found_data)}"
             )
+
+    # ── ChromeOS bruteforce producer/worker ───────────────────────────────
+    def _brute_producer_chromeos(self, board_tags, tracks, inc_start, inc_end, inc_step, template, n_workers,
+                                  use_board, use_ver, use_track, app_id):
+        try:
+            boards = board_tags if use_board else [""]
+            trks = tracks if use_track else [""]
+            if use_ver:
+                inc_values = range(inc_start, inc_end + 1, inc_step)
+            else:
+                inc_values = [0]
+
+            for bt in boards:
+                for inc in inc_values:
+                    for tr in trks:
+                        if self._brute_stop_flag:
+                            break
+                        self._brute_queue.put((bt, tr, str(inc) if use_ver else "", template, app_id), block=True)
+                    if self._brute_stop_flag:
+                        break
+                if self._brute_stop_flag:
+                    break
+        finally:
+            for _ in range(n_workers):
+                self._brute_queue.put(None)
+
+    def _brute_worker_chromeos(self):
+        while True:
+            self._brute_pause_event.wait()
+            if self._brute_stop_flag:
+                break
+            try:
+                item = self._brute_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if item is None:
+                break
+            board_tag, track, ver, template, app_id = item
+
+            fp = template
+            if '{BOARD}' in template:
+                fp = fp.replace('{BOARD}', board_tag)
+            if '{VER}' in template:
+                fp = fp.replace('{VER}', ver if ver else '0.0.0.0')
+            if '{TRACK}' in template:
+                fp = fp.replace('{TRACK}', track)
+
+            max_retries = 3
+            for attempt in range(max_retries):
+                if self._brute_stop_flag:
+                    break
+                self._brute_pause_event.wait()
+                if self._brute_stop_flag:
+                    break
+                try:
+                    parsed = parse_fingerprint_chromeos(fp)
+                    response_text, _raw = perform_checkin_chromeos(fp, app_id, hardware_class=parsed['hwid'])
+                    if not response_text:
+                        if attempt == max_retries - 1:
+                            self._brute_log(f"  BOARD={board_tag} TRACK={track} VER={ver} → no response (after {max_retries} retries)", 'skip')
+                            self._brute_increment_progress()
+                        else:
+                            time.sleep(1)
+                        continue
+                    ota = find_ota_link_chromeos(response_text)
+                    self._brute_process_result(fp, board_tag, track, ver, "", ota)
+                    self._brute_increment_progress()
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        self._brute_log(f"  BOARD={board_tag} TRACK={track} VER={ver} → ERROR: {e} (after {max_retries} retries)", 'error')
+                        self._brute_increment_progress()
+                    else:
+                        time.sleep(1)
 
     def _brute_process_result(self, fp, build_tag, key_type, inc, loc, ota):
         skip_dupes = self.brute_skip_dupes_var.get()
@@ -1554,6 +1951,25 @@ class OTAProberGUI:
         if self.current_ota_link:
             webbrowser.open(self.current_ota_link)
 
+    def _flash_button(self, button, flash_text="✓ Copied", duration_ms=900):
+        original_text = button.cget('text')
+        # Avoid stacking multiple restores if clicked repeatedly in quick succession
+        pending_id = getattr(button, '_flash_after_id', None)
+        if pending_id:
+            try:
+                self.root.after_cancel(pending_id)
+            except Exception:
+                pass
+        else:
+            button._flash_original_text = original_text
+        button.config(text=flash_text)
+
+        def _restore():
+            button.config(text=getattr(button, '_flash_original_text', original_text))
+            button._flash_after_id = None
+
+        button._flash_after_id = self.root.after(duration_ms, _restore)
+
     def on_copy_link_click(self):
         if not self.current_ota_link:
             self.status_var.set("No link to copy yet")
@@ -1561,6 +1977,7 @@ class OTAProberGUI:
         self.root.clipboard_clear()
         self.root.clipboard_append(self.current_ota_link)
         self.status_var.set("Link copied to clipboard")
+        self._flash_button(self.copy_link_button, "✓ Copied")
 
     def on_clear_click(self):
         self.output_text.delete(1.0, tk.END)
@@ -1583,6 +2000,7 @@ class OTAProberGUI:
             self.root.clipboard_clear()
             self.root.clipboard_append(content)
             self.update_status("Copied to clipboard", 'success')
+            self._flash_button(self.copy_button, "✓ Copied")
         except Exception as e:
             self.update_status(f"Failed to copy: {e}", 'error')
 
@@ -1607,6 +2025,9 @@ class OTAProberGUI:
         self.query_thread.start()
 
     def perform_query(self, fingerprint):
+        if self.os_mode_var.get() == "chromeos":
+            self.perform_query_chromeos(fingerprint)
+            return
         try:
             self.output_text.delete(1.0, tk.END)
             self.raw_text.delete(1.0, tk.END)
@@ -1691,6 +2112,96 @@ class OTAProberGUI:
             self.clear_button.config(state=tk.NORMAL)
             self.fingerprint_entry.config(state=tk.NORMAL)
 
+    def perform_query_chromeos(self, fingerprint):
+        try:
+            self.output_text.delete(1.0, tk.END)
+            self.raw_text.delete(1.0, tk.END)
+            if self.html_frame:
+                self.html_frame.load_html("")
+            elif self.desc_text:
+                self.desc_text.delete(1.0, tk.END)
+            self.url_map.clear()
+            self.current_ota_link = None
+            self.copy_link_button.config(state=tk.DISABLED)
+            self.update_status("Parsing ChromiumOS fingerprint...")
+
+            parsed = parse_fingerprint_chromeos(fingerprint)
+            app_id = self.cros_appid_var.get().strip()
+            if not app_id:
+                raise ValueError("App ID is required for ChromiumOS check-in")
+
+            self.update_status("Sending Omaha check-in request...")
+            response_text, raw_bytes = perform_checkin_chromeos(fingerprint, app_id, hardware_class=parsed['hwid'])
+
+            if not response_text:
+                self.log_output("ERROR: Check-in failed - No response from server", 'error')
+                self.status_icon_var.set("❌")
+                self.update_status("Query failed", 'error')
+            else:
+                human_dump = prettify_xml(response_text)
+                hex_dump = '\n'.join(
+                    f"  {i:06x}  " + ' '.join(f'{b:02x}' for b in raw_bytes[i:i+16])
+                    for i in range(0, len(raw_bytes), 16)
+                )
+                self._raw_populate(human_dump, hex_dump)
+
+                ota_link = find_ota_link_chromeos(response_text)
+
+                build_info = {
+                    'device_codename': parsed['board'],
+                    'android_version': f"ChromeOS {parsed['version']} ({parsed['track']})",
+                    'build_tag': parsed['version'],
+                    'build_number': '',
+                    'build_flavor': parsed['track'],
+                    'security_keys': '',
+                    'android_id': '',
+                    'device_country': '',
+                }
+
+                if self.json_var.get():
+                    json_data = {
+                        'fingerprint': fingerprint,
+                        'build_info': build_info,
+                        'ota_link': ota_link,
+                        'app_id': app_id,
+                    }
+                    output_str = json.dumps(json_data, indent=2)
+                    self.log_output(output_str)
+                    if self.html_frame:
+                        self.html_frame.load_html(f"<pre>{output_str}</pre>")
+                    elif self.desc_text:
+                        self.desc_text.insert(tk.END, output_str)
+                else:
+                    self.format_and_log_output(fingerprint, {}, build_info, ota_link)
+
+                if self.save_var.get():
+                    if self.json_var.get():
+                        output_str = json.dumps({
+                            'fingerprint': fingerprint,
+                            'build_info': build_info,
+                            'ota_link': ota_link,
+                            'app_id': app_id,
+                        }, indent=2)
+                    else:
+                        output_str = self.output_text.get(1.0, tk.END)
+                    self.save_output(output_str, fingerprint)
+
+                self.update_status("Query completed successfully", 'success')
+
+        except ValueError as e:
+            self.log_output(f"ERROR: {e}", 'error')
+            self.status_icon_var.set("❌")
+            self.update_status("Invalid fingerprint format", 'error')
+        except Exception as e:
+            self.log_output(f"ERROR: {e}", 'error')
+            self.status_icon_var.set("❌")
+            self.update_status(f"Error: {e}", 'error')
+        finally:
+            self.query_button.config(state=tk.NORMAL)
+            self.keyscan_button.config(state=tk.NORMAL)
+            self.clear_button.config(state=tk.NORMAL)
+            self.fingerprint_entry.config(state=tk.NORMAL)
+
     def save_output(self, content, fingerprint):
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1715,17 +2226,23 @@ class OTAProberGUI:
         self.log_output("=" * 75, 'header')
 
         self.log_output("\n[INPUT]", 'section')
+        is_cros = self.os_mode_var.get() == "chromeos"
         self.log_output(f"  Device Codename:   {build_info['device_codename']}", 'info')
         self.log_output(f"  Android Version:   {build_info['android_version']}", 'info')
         self.log_output(f"  Build Tag:         {build_info['build_tag']}", 'info')
-        self.log_output(f"  Build Number:      {build_info['build_number']}", 'info')
+        if not is_cros:
+            self.log_output(f"  Build Number:      {build_info['build_number']}", 'info')
         self.log_output(f"  Build Flavor:      {build_info['build_flavor']}", 'info')
-        self.log_output(f"  Security Keys:     {build_info['security_keys']}", 'info')
+        if not is_cros:
+            self.log_output(f"  Security Keys:     {build_info['security_keys']}", 'info')
 
         self.log_output("\n[SERVER RESPONSE]", 'section')
-        self.log_output(f"  Total Settings:    {len(settings)}", 'info')
-        self.log_output(f"  Android ID:        {build_info['android_id']}", 'info')
-        self.log_output(f"  Device Country:    {build_info['device_country']}", 'info')
+        if settings:
+            self.log_output(f"  Total Settings:    {len(settings)}", 'info')
+        if build_info.get('android_id'):
+            self.log_output(f"  Android ID:        {build_info['android_id']}", 'info')
+        if build_info.get('device_country'):
+            self.log_output(f"  Device Country:    {build_info['device_country']}", 'info')
 
         self.log_output("\n[OTA UPDATE]", 'section')
         if ota_link:
@@ -1743,14 +2260,10 @@ class OTAProberGUI:
             self.log_link(ota_link['url'], ota_link['url'])
             self.output_text.insert(tk.END, '\n', 'info')
 
-            if ota_link.get('size'):
-                self.log_output(f"  Size:              {ota_link['size']}", 'info')
-
             self.current_ota_link = ota_link['url']
             self.current_ota_precondition = ota_link.get('precondition', '')
             self.current_ota_postcondition = ota_link.get('postcondition', '')
-            header_text = f"🔗 {ota_link['url']}"
-            self.ota_link_label.config(text=header_text, foreground='#0066cc')
+            self._set_ota_link_header(ota_link['url'])
             self.copy_link_button.config(state=tk.NORMAL)
             self._meta_autofill_url(ota_link['url'])
 
@@ -1995,6 +2508,189 @@ def parse_fingerprint(fingerprint):
         'incremental': incremental,
         'build_type': build_type,
         'key_type': key_type,
+    }
+
+
+def prettify_xml(xml_text: str) -> str:
+    """
+    Pretty-prints an XML string (e.g. the ChromeOS Omaha response) with
+    indentation and one tag/attribute-group per line, so it's readable
+    in the Raw Response tab instead of appearing as a single long line.
+    Falls back to returning the original text if parsing fails.
+    """
+    if not xml_text or not xml_text.strip():
+        return xml_text
+
+    try:
+        import xml.dom.minidom as minidom
+        parsed = minidom.parseString(xml_text.encode('utf-8') if isinstance(xml_text, str) else xml_text)
+        pretty = parsed.toprettyxml(indent="  ")
+        # minidom leaves blank lines where there was only whitespace between
+        # tags — strip those so the output stays compact and readable.
+        lines = [line for line in pretty.splitlines() if line.strip()]
+        return '\n'.join(lines)
+    except Exception:
+        return xml_text
+
+
+def parse_fingerprint_chromeos(fingerprint):
+    """
+    Parses our own convention: board/version:track/hwid
+    e.g. nocturne-signed-mpkeys/12499.51.0:stable-channel/NOCTURNE D5B-A5F-B47-H6A-A5L
+    """
+    if '/' not in fingerprint or ':' not in fingerprint:
+        raise ValueError(
+            "Invalid ChromiumOS fingerprint format. Expected 3 parts.\n"
+            "Format: board/version:track/hwid\n"
+            f"Got: {fingerprint}"
+        )
+    parts = fingerprint.split('/')
+    if len(parts) != 3:
+        raise ValueError(f"Invalid ChromiumOS fingerprint format. Expected 3 parts.\n"
+                          f"Format: board/version:track/hwid\n"
+                          f"Got {len(parts)} parts: {parts}")
+
+    board = parts[0]
+
+    version_track = parts[1].split(':')
+    if len(version_track) != 2:
+        raise ValueError(f"Invalid version:track format in part 2: {parts[1]}")
+    version = version_track[0]
+    track = version_track[1]
+
+    hwid = parts[2]
+
+    return {
+        'fingerprint': fingerprint,
+        'board': board,
+        'version': version,
+        'track': track,
+        'hwid': hwid,
+    }
+
+
+def build_checkin_request_chromeos(fingerprint, app_id, arch="x86_64", hardware_class=None):
+    parsed = parse_fingerprint_chromeos(fingerprint)
+    hwid = hardware_class if hardware_class else parsed['hwid']
+
+    request_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<request protocol="3.0" version="ChromeOSUpdateEngine-0.1.0.0" '
+        'updaterversion="ChromeOSUpdateEngine-0.1.0.0" installsource="ondemand" '
+        'ismachine="1" testsource="prober">\n'
+        f'<app appid="{app_id}" version="{parsed["version"]}" board="{parsed["board"]}" '
+        f'track="{parsed["track"]}" hardware_class="{hwid}" delta_okay="false">\n'
+        '<updatecheck targetversionprefix=""></updatecheck>\n'
+        '</app>\n'
+        '</request>'
+    )
+
+    return request_xml
+
+
+def perform_checkin_chromeos(fingerprint, app_id, arch="x86_64", hardware_class=None):
+    try:
+        request_data = build_checkin_request_chromeos(fingerprint, app_id, arch, hardware_class)
+        request_bytes = request_data.encode('utf-8')
+
+        headers = {
+            'Content-Type': 'application/xml',
+            'User-Agent': 'ChromeOSUpdateEngine/0.1.0.0',
+        }
+
+        req = urllib.request.Request(CROS_AUSERVER, data=request_bytes, headers=headers, method='POST')
+
+        with urllib.request.urlopen(req, timeout=10) as response:
+            response_data = response.read()
+            return response_data.decode('utf-8', errors='replace'), response_data
+
+    except urllib.error.URLError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return None, None
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return None, None
+
+
+def find_ota_link_chromeos(response_xml_text):
+    """
+    Parses the Omaha XML response and extracts the OTA package URL,
+    stitched together from <url codebase="..."/> and <action run="..."/>.
+    Returns None if there's no update, or a dict similar in shape to the
+    Android find_ota_link() result.
+    """
+    if not response_xml_text:
+        return None
+
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(response_xml_text)
+    except Exception:
+        return None
+
+    ns = ''
+    if root.tag.startswith('{'):
+        ns = root.tag.split('}')[0] + '}'
+
+    app = root.find(f'{ns}app')
+    if app is None:
+        return None
+
+    updatecheck = app.find(f'{ns}updatecheck')
+    if updatecheck is None or updatecheck.get('status') != 'ok':
+        return None
+
+    urls_el = updatecheck.find(f'{ns}urls')
+    manifest_el = updatecheck.find(f'{ns}manifest')
+    if urls_el is None or manifest_el is None:
+        return None
+
+    url_els = urls_el.findall(f'{ns}url')
+    codebase = None
+    for u in url_els:
+        cb = u.get('codebase')
+        if cb and cb.startswith('https'):
+            codebase = cb
+            break
+    if codebase is None and url_els:
+        codebase = url_els[0].get('codebase')
+    if not codebase:
+        return None
+
+    actions_el = manifest_el.find(f'{ns}actions')
+    run_name = None
+    if actions_el is not None:
+        for action in actions_el.findall(f'{ns}action'):
+            if action.get('event') in ('install', 'update') and action.get('run'):
+                run_name = action.get('run')
+                break
+
+    # Prefer the <packages><package name="..."/> entry if present - it's the
+    # authoritative filename/size source in newer Omaha responses.
+    packages_el = manifest_el.find(f'{ns}packages')
+    size = ''
+    if packages_el is not None:
+        pkg = packages_el.find(f'{ns}package')
+        if pkg is not None:
+            if pkg.get('name'):
+                run_name = pkg.get('name')
+            if pkg.get('size'):
+                size = pkg.get('size')
+
+    if not run_name:
+        return None
+
+    full_url = codebase.rstrip('/') + '/' + run_name
+
+    version = manifest_el.get('version', '')
+
+    return {
+        'url': full_url,
+        'title': f"ChromeOS {version}" if version else '',
+        'description': '',
+        'precondition': '',
+        'postcondition': '',
+        'size': size,
     }
 
 
