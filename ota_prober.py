@@ -528,6 +528,9 @@ class OTAProberGUI:
         self.ota_link_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.ota_link_label.bind('<Button-1>', self.on_header_link_click)
 
+        self.copy_link_button = ttk.Button(header_frame, text="Copy link", command=self.on_copy_link_click, state=tk.DISABLED)
+        self.copy_link_button.pack(side=tk.RIGHT, padx=(10, 0))
+
         self.notebook = ttk.Notebook(output_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
@@ -834,6 +837,7 @@ class OTAProberGUI:
         self._httpinfo_last_result = None
         self._httpinfo_metadata_loaded = False
         self._httpinfo_altnames_loaded = False
+        self._httpinfo_pending_jobs = 0
 
     def _httpinfo_start(self):
         url = self.httpinfo_url_var.get().strip()
@@ -851,6 +855,7 @@ class OTAProberGUI:
 
         if current_tab_text in ("Payload Metadata", "Alternative Filenames"):
             self.httpinfo_status_var.set("Fetching metadata and alternative filenames…")
+            self._httpinfo_pending_jobs = 2
 
             for ch in self.hi_tree_metadata.get_children():
                 self.hi_tree_metadata.delete(ch)
@@ -864,6 +869,7 @@ class OTAProberGUI:
 
         else:
             self.httpinfo_status_var.set("Probing…")
+            self._httpinfo_pending_jobs = 1
             self._httpinfo_last_result = None
             threading.Thread(target=self._httpinfo_worker, args=(url,), daemon=True).start()
 
@@ -881,6 +887,11 @@ class OTAProberGUI:
     def _httpinfo_done(self):
         self.httpinfo_progress.stop()
         self.httpinfo_fetch_btn.config(state=tk.NORMAL)
+        self._httpinfo_pending_jobs = max(0, self._httpinfo_pending_jobs - 1)
+        if self._httpinfo_pending_jobs == 0:
+            current = self.httpinfo_status_var.get()
+            if current in ("Fetching metadata and alternative filenames…", "Probing…"):
+                self.httpinfo_status_var.set("")
 
     def _httpinfo_metadata_worker(self, url):
         try:
@@ -1543,6 +1554,14 @@ class OTAProberGUI:
         if self.current_ota_link:
             webbrowser.open(self.current_ota_link)
 
+    def on_copy_link_click(self):
+        if not self.current_ota_link:
+            self.status_var.set("No link to copy yet")
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.current_ota_link)
+        self.status_var.set("Link copied to clipboard")
+
     def on_clear_click(self):
         self.output_text.delete(1.0, tk.END)
         if self.html_frame:
@@ -1555,6 +1574,7 @@ class OTAProberGUI:
         self.status_icon_var.set("")
         self.ota_link_label.config(text="")
         self.current_ota_link = None
+        self.copy_link_button.config(state=tk.DISABLED)
         self.update_status("Output cleared")
 
     def on_copy_click(self):
@@ -1596,6 +1616,7 @@ class OTAProberGUI:
                 self.desc_text.delete(1.0, tk.END)
             self.url_map.clear()
             self.current_ota_link = None
+            self.copy_link_button.config(state=tk.DISABLED)
             self.update_status("Parsing fingerprint...")
 
             parsed = parse_fingerprint(fingerprint)
@@ -1730,6 +1751,7 @@ class OTAProberGUI:
             self.current_ota_postcondition = ota_link.get('postcondition', '')
             header_text = f"🔗 {ota_link['url']}"
             self.ota_link_label.config(text=header_text, foreground='#0066cc')
+            self.copy_link_button.config(state=tk.NORMAL)
             self._meta_autofill_url(ota_link['url'])
 
             desc_parts = []
@@ -1836,6 +1858,7 @@ class OTAProberGUI:
                 self.desc_text.delete(1.0, tk.END)
             self.url_map.clear()
             self.current_ota_link = None
+            self.copy_link_button.config(state=tk.DISABLED)
             self.status_icon_var.set("")
             self.ota_link_label.config(text="")
 
@@ -2679,11 +2702,41 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
 
     # ── Strategy 1: naive scan of tail chunk (works if STORED) ──────────
     if tail_data:
+        anchor = -1
+        for prefix in PAYLOAD_METADATA_PREFIXES:
+            pos = tail_data.find(f'{prefix}='.encode('utf-8'))
+            if pos != -1 and (anchor == -1 or pos < anchor):
+                anchor = pos
+        if anchor != -1:
+            search_start = max(0, anchor - 4096)
+            block_start = tail_data.rfind(LFH_SIG, search_start, anchor)
+            if block_start == -1:
+                block_start = search_start
+            else:
+                try:
+                    name_len = struct.unpack('<H', tail_data[block_start + 26:block_start + 28])[0]
+                    extra_len = struct.unpack('<H', tail_data[block_start + 28:block_start + 30])[0]
+                    block_start = block_start + 30 + name_len + extra_len
+                except struct.error:
+                    pass
+            block_end = tail_data.find(LFH_SIG, anchor)
+            if block_end == -1:
+                block_end = tail_data.find(CDFH_SIG, anchor)
+            if block_end == -1:
+                block_end = tail_data.find(EOCD_SIG, anchor)
+            if block_end == -1:
+                block_end = len(tail_data)
+            fields = _parse_all_metadata_lines(tail_data[block_start:block_end], PAYLOAD_METADATA_PREFIXES)
+            if fields:
+                out['found'] = True
+                out['fields'] = fields
+                out['source'] = f'tail raw scan ({len(tail_data):,} bytes)'
+                return out
         fields = _extract_metadata_kv(tail_data, PAYLOAD_METADATA_PREFIXES)
         if fields:
             out['found'] = True
             out['fields'] = fields
-            out['source'] = f'tail raw scan ({len(tail_data):,} bytes)'
+            out['source'] = f'tail raw scan ({len(tail_data):,} bytes, partial)'
             return out
 
     # ── Strategy 2: proper ZIP central-directory parse (handles DEFLATE) ──
