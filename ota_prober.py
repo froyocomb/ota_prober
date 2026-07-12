@@ -2628,25 +2628,41 @@ def _find_zip_metadata_entry(tail_blob: bytes, tail_offset: int):
     return None
 
 
+# Допоміжна функція для пошуку локального заголовка в голові
+def _find_local_metadata_header(data: bytes, offset: int = 0):
+    """Find local file header for META-INF/com/android/metadata in a byte chunk."""
+    pos = offset
+    while pos < len(data) - 30:
+        idx = data.find(LFH_SIG, pos)
+        if idx == -1:
+            break
+        try:
+            name_len = struct.unpack('<H', data[idx+26:idx+28])[0]
+            extra_len = struct.unpack('<H', data[idx+28:idx+30])[0]
+            if idx + 30 + name_len > len(data):
+                pos = idx + 1
+                continue
+            name = data[idx+30:idx+30+name_len]
+            if name == b'META-INF/com/android/metadata':
+                compressed_size = struct.unpack('<I', data[idx+18:idx+22])[0]
+                compression_method = struct.unpack('<H', data[idx+10:idx+12])[0]
+                return idx, compressed_size, compression_method, name.decode()
+        except struct.error:
+            pass
+        pos = idx + 1
+    return None
+
+
 def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
                             chunk_bytes: int = 2 * 1024 * 1024) -> dict:
     """
     Fetch OTA package metadata (pre/post build fingerprints, security patch
     level, timestamp, etc.) without downloading the whole file.
 
-    OTA zips store this as plain `key=value` lines inside
-    META-INF/com/android/metadata, which lives near the end of the archive
-    (inside/near the central directory). Two strategies are used on the
-    tail chunk:
-
-    1. Naive scan: some packaging pipelines store this entry uncompressed
-       (STORED), so the plaintext bytes are directly greppable.
-    2. Proper ZIP parsing: read the End Of Central Directory + central
-       directory from the tail chunk, locate the exact metadata entry,
-       fetch just its bytes, and inflate them if they were stored with
-       DEFLATE compression. This is the reliable path, since the entry is
-       very often deflate-compressed and won't show up via a raw byte
-       scan at all.
+    Strategies:
+    1) ZIP central directory in the tail (most reliable)
+    2) local header search in the head (if metadata is near the start)
+    3) naive key scan in head (known prefixes only, no garbage)
     """
     def _s(msg):
         if status_cb:
@@ -2669,9 +2685,7 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
         })
         ctx = ssl.create_default_context()
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-            code = resp.getcode()
-            data = resp.read()
-            return code, data
+            return resp.read()
 
     def _head_size():
         head_req = urllib.request.Request(url, method='HEAD', headers={
@@ -2682,20 +2696,20 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
         with urllib.request.urlopen(head_req, timeout=timeout, context=ctx) as resp:
             return int(resp.headers.get('Content-Length', '0') or '0')
 
-    # ── Determine total size for tail fetch ───────────────────────────────
     total_size = 0
     try:
         total_size = _head_size()
     except Exception as e:
         errors.append(f"HEAD size lookup failed: {e}")
 
+    # ── Tail fetch ──────────────────────────────────────────────────────────
     tail_data = b''
     tail_offset = 0
     if total_size > 0:
         try:
             tail_offset = max(0, total_size - chunk_bytes)
             _s(f"Fetching last {chunk_bytes // 1024 // 1024} MiB…")
-            code, tail_data = _get_range(f'bytes={tail_offset}-{total_size - 1}')
+            tail_data = _get_range(f'bytes={tail_offset}-{total_size - 1}')
             out['bytes_scanned'] += len(tail_data)
         except Exception as e:
             errors.append(f"Tail fetch failed: {e}")
@@ -2747,17 +2761,13 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
             if entry:
                 local_header_offset, compressed_size, compression_method, name = entry
 
-                # local file header is 30 bytes + filename + extra field;
-                # figure out where actual entry data starts.
-                # If the local header happens to already be inside our
-                # tail_data chunk, slice it directly; otherwise fetch it.
                 lh_start_in_tail = local_header_offset - tail_offset
                 if 0 <= lh_start_in_tail and lh_start_in_tail + 30 <= len(tail_data):
                     lh_blob = tail_data
                     lh_pos = lh_start_in_tail
                 else:
                     _s("Fetching local file header…")
-                    code, lh_blob = _get_range(
+                    lh_blob = _get_range(
                         f'bytes={local_header_offset}-{local_header_offset + 4096}')
                     out['bytes_scanned'] += len(lh_blob)
                     lh_pos = 0
@@ -2770,10 +2780,9 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
                     if data_start_in_lh_blob + compressed_size <= len(lh_blob):
                         entry_data = lh_blob[data_start_in_lh_blob:data_start_in_lh_blob + compressed_size]
                     else:
-                        # need to fetch the entry bytes directly by absolute offset
                         abs_data_start = local_header_offset + 30 + name_len + extra_len
                         _s(f"Fetching {name} entry ({compressed_size} bytes)…")
-                        code, entry_data = _get_range(
+                        entry_data = _get_range(
                             f'bytes={abs_data_start}-{abs_data_start + compressed_size - 1}')
                         out['bytes_scanned'] += len(entry_data)
 
@@ -2803,13 +2812,77 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
                 else:
                     errors.append("Local file header signature mismatch")
             else:
-                errors.append("META-INF/com/android/metadata not found in central directory "
-                               "(EOCD may be outside the fetched tail range, or file isn't a "
-                               "standard ZIP — could be a raw payload.bin or brotli-compressed OTA)")
+                errors.append("META-INF/com/android/metadata not found in central directory")
         except Exception as e:
             errors.append(f"ZIP parse failed: {e}")
-    else:
-        errors.append("Could not fetch tail of file (unknown size or request failed)")
+
+    # ── Strategy 3: ZIP local header in head ──────────────────────────────
+    if not out['found'] and total_size > 0:
+        head_size = min(total_size, chunk_bytes)
+        head_data = b''
+        try:
+            _s(f"Fetching first {head_size // 1024 // 1024} MiB (head) for local header…")
+            head_data = _get_range(f'bytes=0-{head_size-1}')
+            out['bytes_scanned'] += len(head_data)
+        except Exception as e:
+            errors.append(f"Head fetch for local header failed: {e}")
+
+        if head_data:
+            entry = _find_local_metadata_header(head_data, 0)
+            if entry:
+                local_offset, compressed_size, compression_method, name = entry
+                name_len = struct.unpack('<H', head_data[local_offset+26:local_offset+28])[0]
+                extra_len = struct.unpack('<H', head_data[local_offset+28:local_offset+30])[0]
+                data_start = local_offset + 30 + name_len + extra_len
+                if data_start + compressed_size <= len(head_data):
+                    entry_data = head_data[data_start:data_start+compressed_size]
+                else:
+                    abs_data_start = data_start
+                    _s(f"Fetching {name} entry ({compressed_size} bytes) from head…")
+                    entry_data = _get_range(
+                        f'bytes={abs_data_start}-{abs_data_start + compressed_size - 1}')
+                    out['bytes_scanned'] += len(entry_data)
+
+                if compression_method == 0:
+                    plain = entry_data
+                elif compression_method == 8:
+                    try:
+                        plain = zlib.decompress(entry_data, -15)
+                    except Exception as e:
+                        errors.append(f"Inflate failed (head): {e}")
+                        plain = b''
+                else:
+                    errors.append(f"Unsupported compression method {compression_method} (head)")
+                    plain = b''
+
+                if plain:
+                    fields = _parse_all_metadata_lines(plain, PAYLOAD_METADATA_PREFIXES)
+                    if fields:
+                        out['found'] = True
+                        out['fields'] = fields
+                        out['source'] = f'ZIP entry from head {name} (method={compression_method})'
+                        return out
+                    else:
+                        errors.append("Head metadata entry decoded but no known keys matched")
+
+    # ── Strategy 4: naive key scan in head (known prefixes only) ──────────
+    if not out['found'] and total_size > 0:
+        if 'head_data' not in locals() or not head_data:
+            try:
+                head_size = min(total_size, chunk_bytes)
+                _s(f"Fetching first {head_size // 1024 // 1024} MiB (head) for key scan…")
+                head_data = _get_range(f'bytes=0-{head_size-1}')
+                out['bytes_scanned'] += len(head_data)
+            except Exception as e:
+                errors.append(f"Head fetch for key scan failed: {e}")
+                head_data = b''
+        if head_data:
+            fields = _extract_metadata_kv(head_data, PAYLOAD_METADATA_PREFIXES)
+            if fields:
+                out['found'] = True
+                out['fields'] = fields
+                out['source'] = f'head raw scan (known prefixes only, {len(head_data):,} bytes)'
+                return out
 
     out['error'] = " | ".join(errors) if errors else "metadata not found in head or tail"
     return out
