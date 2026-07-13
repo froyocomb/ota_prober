@@ -2349,12 +2349,8 @@ class OTAProberGUI:
                     else:
                     # Передаємо ota_dict замість рядка
                         self.format_and_log_output(fingerprint, {}, build_info, ota_dict)
-                        if details.get('filename'):
-                            self.log_output(f"\nFilename: {details.get('filename')}")
-                        if details.get('filesize'):
-                            self.log_output(f"Filesize: {details.get('filesize')}")
                         if details.get('md5'):
-                            self.log_output(f"MD5: {details.get('md5')}")
+                            self.log_output(f"    MD5: {details.get('md5')}")
 
                     if self.save_var.get():
                         if self.json_var.get():
