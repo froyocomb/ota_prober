@@ -37,6 +37,11 @@ except ImportError:
     HtmlFrame = None
     TkwNotebook = None
 
+# tkinterweb.Notebook is a documented drop-in replacement for ttk.Notebook
+# that avoids a known crash: Tkhtml (the HTML engine behind HtmlFrame) is
+# incompatible with ttk.Notebook on 64-bit Windows and crashes when a tab
+# containing an HtmlFrame is revisited. See:
+# https://tkinterweb.readthedocs.io/en/latest/faq.html
 NOTEBOOK_CLS = TkwNotebook if TkwNotebook else ttk.Notebook
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -749,57 +754,99 @@ class OTAProberGUI:
 
     # ── Bruteforce tab: adapt fields to the selected OS mode ─────────────
     def _set_brute_os_mode(self):
-        is_cros = self.os_mode_var.get() == "chromeos"
+        mode = self.os_mode_var.get()
+        is_cros = mode == "chromeos"
+        is_xiaomi = mode == "xiaomi"
+
+        # Values from all three modes' defaults, so we can tell whether the
+        # field still holds "the previous mode's default" (safe to swap out)
+        # or something the user typed themselves (leave alone).
+        cros_fp, xiaomi_fp, android_fp = "{BOARD}/{VER}:{TRACK}/NOCTURNE NNNN", "{DEVICE}/{ROM}/{AND}", "google/baracus/baracus:6.0/{BUILD}/{INC}:{KEY}"
+        cros_tags, xiaomi_tags, android_tags = "nocturne-signed-mpkeys", "dada_global\nvenus_global", "MRTA.181211.008"
+        cros_keys, xiaomi_keys, android_keys = "\n".join(CROS_TRACKS), "OS1.0.2.0.UNCMIXM\nOS1.0.3.0.UNCMIXM", "user/release-keys\nuser/test-keys"
+        cros_start, xiaomi_start, android_start = "0", "13", "370000"
+        cros_end, xiaomi_end, android_end = "0", "15", "400000"
+
         if is_cros:
             self.brute_fp_hint_var.set("Use {BOARD}, {VER} and {TRACK} as placeholders:")
             self.brute_fp_legend_var.set("{BOARD} = board name   {VER} = version   {TRACK} = update track")
-            if self.brute_fp_var.get() == "google/baracus/baracus:6.0/{BUILD}/{INC}:{KEY}":
-                self.brute_fp_var.set("{BOARD}/{VER}:{TRACK}/NOCTURNE NNNN")
+            if self.brute_fp_var.get() in (android_fp, xiaomi_fp):
+                self.brute_fp_var.set(cros_fp)
 
             self.brute_bt_lf.configure(text="Board Tags")
-            if self.brute_tags_text.get("1.0", tk.END).strip() == "MRTA.181211.008":
+            if self.brute_tags_text.get("1.0", tk.END).strip() in (android_tags, xiaomi_tags):
                 self.brute_tags_text.delete("1.0", tk.END)
-                self.brute_tags_text.insert(tk.END, "nocturne-signed-mpkeys")
+                self.brute_tags_text.insert(tk.END, cros_tags)
 
             self.brute_kt_lf.configure(text="Tracks")
-            if self.brute_keys_text.get("1.0", tk.END).strip() == "user/release-keys\nuser/test-keys":
+            if self.brute_keys_text.get("1.0", tk.END).strip() in (android_keys, xiaomi_keys):
                 self.brute_keys_text.delete("1.0", tk.END)
-                self.brute_keys_text.insert(tk.END, "\n".join(CROS_TRACKS))
+                self.brute_keys_text.insert(tk.END, cros_keys)
 
             self.brute_loc_lf.grid_remove()
 
             self.brute_inc_lf.configure(text="Version Range")
             self.brute_inc_row_labels[0].config(text="Base:")
-            if self.brute_inc_start_var.get() == "370000":
-                self.brute_inc_start_var.set("0")
-            if self.brute_inc_end_var.get() == "400000":
-                self.brute_inc_end_var.set("0")
+            if self.brute_inc_start_var.get() in (android_start, xiaomi_start):
+                self.brute_inc_start_var.set(cros_start)
+            if self.brute_inc_end_var.get() in (android_end, xiaomi_end):
+                self.brute_inc_end_var.set(cros_end)
 
             self.brute_appid_row.pack(fill=tk.X, pady=(4, 0))
+
+        elif is_xiaomi:
+            self.brute_fp_hint_var.set("Use {DEVICE}, {ROM} and {AND} as placeholders:")
+            self.brute_fp_legend_var.set("{DEVICE} = codename (e.g. venus_global)   {ROM} = ROM version (e.g. OS1.0.2.0.UNCMIXM)   {AND} = Android version")
+            if self.brute_fp_var.get() in (android_fp, cros_fp):
+                self.brute_fp_var.set(xiaomi_fp)
+
+            self.brute_bt_lf.configure(text="Devices (codenames)")
+            if self.brute_tags_text.get("1.0", tk.END).strip() in (android_tags, cros_tags):
+                self.brute_tags_text.delete("1.0", tk.END)
+                self.brute_tags_text.insert(tk.END, xiaomi_tags)
+
+            self.brute_kt_lf.configure(text="ROM Versions")
+            if self.brute_keys_text.get("1.0", tk.END).strip() in (android_keys, cros_keys):
+                self.brute_keys_text.delete("1.0", tk.END)
+                self.brute_keys_text.insert(tk.END, xiaomi_keys)
+
+            # Xiaomi's check-in has no locale/timezone parameter of its own —
+            # region (CN vs Global) is derived from the codename instead.
+            self.brute_loc_lf.grid_remove()
+
+            self.brute_inc_lf.configure(text="Android Version Range")
+            self.brute_inc_row_labels[0].config(text="Start:")
+            if self.brute_inc_start_var.get() in (android_start, cros_start):
+                self.brute_inc_start_var.set(xiaomi_start)
+            if self.brute_inc_end_var.get() in (android_end, cros_end):
+                self.brute_inc_end_var.set(xiaomi_end)
+
+            self.brute_appid_row.pack_forget()
+
         else:
             self.brute_fp_hint_var.set("Use {BUILD}, {INC} and {KEY} as placeholders:")
             self.brute_fp_legend_var.set("{BUILD} = build ID   {INC} = incremental   {KEY} = key type")
-            if self.brute_fp_var.get() == "{BOARD}/{VER}:{TRACK}/NOCTURNE NNNN":
-                self.brute_fp_var.set("google/baracus/baracus:6.0/{BUILD}/{INC}:{KEY}")
+            if self.brute_fp_var.get() in (cros_fp, xiaomi_fp):
+                self.brute_fp_var.set(android_fp)
 
             self.brute_bt_lf.configure(text="Build Tags")
-            if self.brute_tags_text.get("1.0", tk.END).strip() == "nocturne-signed-mpkeys":
+            if self.brute_tags_text.get("1.0", tk.END).strip() in (cros_tags, xiaomi_tags):
                 self.brute_tags_text.delete("1.0", tk.END)
-                self.brute_tags_text.insert(tk.END, "MRTA.181211.008")
+                self.brute_tags_text.insert(tk.END, android_tags)
 
             self.brute_kt_lf.configure(text="Key Types")
-            if self.brute_keys_text.get("1.0", tk.END).strip() == "\n".join(CROS_TRACKS):
+            if self.brute_keys_text.get("1.0", tk.END).strip() in (cros_keys, xiaomi_keys):
                 self.brute_keys_text.delete("1.0", tk.END)
-                self.brute_keys_text.insert(tk.END, "user/release-keys\nuser/test-keys")
+                self.brute_keys_text.insert(tk.END, android_keys)
 
             self.brute_loc_lf.grid()
 
             self.brute_inc_lf.configure(text="Incremental Range")
             self.brute_inc_row_labels[0].config(text="Start:")
-            if self.brute_inc_start_var.get() == "0":
-                self.brute_inc_start_var.set("370000")
-            if self.brute_inc_end_var.get() == "0":
-                self.brute_inc_end_var.set("400000")
+            if self.brute_inc_start_var.get() in (cros_start, xiaomi_start):
+                self.brute_inc_start_var.set(android_start)
+            if self.brute_inc_end_var.get() in (cros_end, xiaomi_end):
+                self.brute_inc_end_var.set(android_end)
 
             self.brute_appid_row.pack_forget()
 
@@ -1024,16 +1071,45 @@ class OTAProberGUI:
 
         meta_tree_wrap = ttk.Frame(meta_f)
         meta_tree_wrap.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        meta_tree_wrap.pack_propagate(False)
+        meta_tree_wrap.rowconfigure(0, weight=1)
+        meta_tree_wrap.rowconfigure(1, weight=0)
+        meta_tree_wrap.columnconfigure(0, weight=1)
+        meta_tree_wrap.columnconfigure(1, weight=0, minsize=0)
         cols = ("field", "value")
         self.hi_tree_metadata = ttk.Treeview(meta_tree_wrap, columns=cols, show="headings")
         self.hi_tree_metadata.heading("field", text="Field")
         self.hi_tree_metadata.heading("value", text="Value")
+        # Give "value" a fixed (non-stretching) width and let long content
+        # overflow — that's what makes the horizontal scrollbar meaningful
+        # instead of the column just clipping/wrapping in place.
         self.hi_tree_metadata.column("field", width=260, stretch=False)
-        self.hi_tree_metadata.column("value", width=560, stretch=True)
-        meta_sb = ttk.Scrollbar(meta_tree_wrap, orient=tk.VERTICAL, command=self.hi_tree_metadata.yview)
-        self.hi_tree_metadata.configure(yscrollcommand=meta_sb.set)
-        self.hi_tree_metadata.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        meta_sb.pack(side=tk.RIGHT, fill=tk.Y)
+        # Modest default width; actual width is widened at display time
+        # (see _httpinfo_display_metadata) based on content, capped so it
+        # can never push the status side-panel off screen.
+        self.hi_tree_metadata.column("value", width=560, stretch=False)
+        meta_vsb = ttk.Scrollbar(meta_tree_wrap, orient=tk.VERTICAL, command=self.hi_tree_metadata.yview)
+        meta_hsb = ttk.Scrollbar(meta_tree_wrap, orient=tk.HORIZONTAL, command=self.hi_tree_metadata.xview)
+        self.hi_tree_metadata.configure(yscrollcommand=meta_vsb.set, xscrollcommand=meta_hsb.set)
+        self.hi_tree_metadata.grid(row=0, column=0, sticky="nsew")
+        meta_vsb.grid(row=0, column=1, sticky="ns")
+        meta_hsb.grid(row=1, column=0, sticky="ew")
+        # Corner filler: without this, the bottom-right corner where the
+        # vertical and horizontal scrollbars meet is left as an empty gap
+        # (Tk doesn't auto-size row/column 1 to match exactly), making the
+        # horizontal scrollbar look like it stops short of the real edge.
+        meta_corner = ttk.Frame(meta_tree_wrap, width=meta_vsb.winfo_reqwidth(),
+                                 height=meta_hsb.winfo_reqheight())
+        meta_corner.grid(row=1, column=1, sticky="nsew")
+
+        # Lock column widths: block manual drag-resize of the header
+        # separators so "field"/"value" stay exactly as wide as we set
+        # them programmatically (the app controls sizing, not the user).
+        def _block_column_resize(event):
+            if self.hi_tree_metadata.identify_region(event.x, event.y) == "separator":
+                return "break"
+        self.hi_tree_metadata.bind('<Button-1>', _block_column_resize, add=False)
+        self.hi_tree_metadata.bind('<B1-Motion>', _block_column_resize, add=False)
 
         def _copy_meta_value(event=None):
             sel = self.hi_tree_metadata.selection()
@@ -1228,11 +1304,39 @@ class OTAProberGUI:
         for ch in self.hi_tree_metadata.get_children():
             self.hi_tree_metadata.delete(ch)
 
-        if meta.get('found'):
-            for k, v in meta.get('fields', {}).items():
+        def _autosize_value_column(values):
+            # Rough estimate: ~7px per character at the default Treeview
+            # font, plus padding. Widen up to a sane cap so long values
+            # still need the horizontal scrollbar (that's the point), but
+            # never so wide that it pushes the status side-panel off
+            # screen or blows out the window layout.
+            longest = max((len(str(v)) for v in values), default=0)
+            px = max(900, min(longest * 7 + 40, 2400))
+            self.hi_tree_metadata.column("value", width=px, stretch=False)
+
+        if meta.get('dummy'):
+            filler_name = meta.get('filler_name', '?')
+            filler_size = meta.get('filler_size', 0)
+            if filler_size >= 1_073_741_824:
+                size_human = f"{filler_size/1_073_741_824:.2f} GiB"
+            elif filler_size >= 1_048_576:
+                size_human = f"{filler_size/1_048_576:.2f} MiB"
+            elif filler_size >= 1024:
+                size_human = f"{filler_size/1024:.1f} KiB"
+            else:
+                size_human = f"{filler_size} B"
+            size_val = f"{size_human}  ({filler_size:,} bytes)"
+            self.hi_tree_metadata.insert("", tk.END, values=("Filler file", filler_name))
+            self.hi_tree_metadata.insert("", tk.END, values=("Filler size", size_val))
+            _autosize_value_column([filler_name, size_val])
+            self.hi_metadata_status_var.set("Dummy OTA file.")
+        elif meta.get('found'):
+            fields = meta.get('fields', {})
+            for k, v in fields.items():
                 self.hi_tree_metadata.insert("", tk.END, values=(k, v))
+            _autosize_value_column(fields.values())
             self.hi_metadata_status_var.set(
-                f"Found in {meta.get('source', '?')} — {len(meta.get('fields', {}))} field(s)")
+                f"Found in {meta.get('source', '?')} — {len(fields)} field(s)")
         else:
             err = meta.get('error') or "No metadata fields found (package may not expose plaintext metadata)."
             self.hi_metadata_status_var.set(err.strip(' |'))
@@ -1459,7 +1563,12 @@ class OTAProberGUI:
             time.sleep(0.2)
 
         is_cros = self.os_mode_var.get() == "chromeos"
+        is_xiaomi = self.os_mode_var.get() == "xiaomi"
         template = self.brute_fp_var.get().strip()
+
+        if is_xiaomi:
+            self._brute_start_xiaomi(template)
+            return
 
         if is_cros:
             use_board = '{BOARD}' in template
@@ -1810,17 +1919,195 @@ class OTAProberGUI:
                     else:
                         time.sleep(1)
 
+    # ── Xiaomi bruteforce start/producer/worker ───────────────────────────
+    # The MIUI/HyperOS OTA check-in only accepts fingerprints of the form
+    # codename/rom_version/android_version (see parse_fingerprint_xiaomi /
+    # build_checkin_request_xiaomi) — there's no build-tag, key-type,
+    # incremental, or locale/timezone concept like Android or ChromeOS have.
+    # So the bruteforce fields are repurposed as: Devices (codenames),
+    # ROM Versions, and an Android Version range.
+    def _brute_start_xiaomi(self, template):
+        use_device = '{DEVICE}' in template
+        use_rom = '{ROM}' in template
+        use_and = '{AND}' in template
+
+        raw_devices = self.brute_tags_text.get("1.0", tk.END).strip()
+        devices = [d.strip() for d in raw_devices.splitlines() if d.strip()]
+        if not devices:
+            devices = ["dada_global"] if use_device else [""]
+
+        raw_roms = self.brute_keys_text.get("1.0", tk.END).strip()
+        roms = [r.strip() for r in raw_roms.splitlines() if r.strip()]
+        if not roms:
+            roms = ["OS1.0.2.0.UNCMIXM"] if use_rom else [""]
+
+        try:
+            and_start_str = self.brute_inc_start_var.get().strip()
+            and_end_str = self.brute_inc_end_var.get().strip()
+            and_step_str = self.brute_inc_step_var.get().strip()
+            if and_start_str and and_end_str and use_and:
+                and_start = int(and_start_str)
+                and_end = int(and_end_str)
+                and_step = int(and_step_str) if and_step_str else 1
+                if and_step <= 0:
+                    and_step = 1
+            else:
+                and_start, and_end, and_step = 0, 0, 1
+        except ValueError:
+            and_start, and_end, and_step = 0, 0, 1
+
+        and_count = (and_end - and_start) // and_step + 1 if use_and else 1
+        device_count = len(devices) if use_device else 1
+        rom_count = len(roms) if use_rom else 1
+        total = device_count * rom_count * and_count
+        if total == 0:
+            total = 1
+
+        self._brute_stop_flag = False
+        self._brute_pause_event.set()
+        self._brute_found_data.clear()
+        self._brute_found_count = 0
+        self._brute_processed = 0
+        self._brute_total = total
+
+        self._brute_clear_log()
+
+        self.brute_start_btn.config(state=tk.DISABLED)
+        self.brute_pause_btn.config(state=tk.NORMAL)
+        self.brute_continue_btn.config(state=tk.DISABLED)
+        self.brute_stop_btn.config(state=tk.NORMAL)
+        self.brute_progress['maximum'] = total
+        self.brute_progress['value'] = 0
+
+        self._brute_log(f"Starting Xiaomi bruteforce: {total} combinations", 'header')
+        self._brute_log(f"Template: {template}", 'header')
+        self._brute_log("=" * 70, 'header')
+
+        try:
+            n_workers = max(1, min(1000, int(self.brute_workers_var.get())))
+        except ValueError:
+            n_workers = 10
+
+        self._brute_queue = queue.Queue(maxsize=n_workers * 2)
+
+        self._brute_producer_thread = threading.Thread(
+            target=self._brute_producer_xiaomi,
+            args=(devices, roms, and_start, and_end, and_step, template, n_workers,
+                  use_device, use_rom, use_and),
+            daemon=True
+        )
+        self._brute_producer_thread.start()
+
+        self._brute_worker_threads = []
+        for _ in range(n_workers):
+            t = threading.Thread(target=self._brute_worker_xiaomi, daemon=True)
+            t.start()
+            self._brute_worker_threads.append(t)
+
+        self._brute_running = True
+        self.root.after(500, self._brute_monitor)
+
+    def _brute_producer_xiaomi(self, devices, roms, and_start, and_end, and_step, template, n_workers,
+                                use_device, use_rom, use_and):
+        try:
+            devs = devices if use_device else [""]
+            rom_list = roms if use_rom else [""]
+            if use_and:
+                and_values = range(and_start, and_end + 1, and_step)
+            else:
+                and_values = [0]
+
+            for dv in devs:
+                for av in and_values:
+                    for rv in rom_list:
+                        if self._brute_stop_flag:
+                            break
+                        self._brute_queue.put((dv, rv, str(av) if use_and else "", template), block=True)
+                    if self._brute_stop_flag:
+                        break
+                if self._brute_stop_flag:
+                    break
+        finally:
+            for _ in range(n_workers):
+                self._brute_queue.put(None)
+
+    def _brute_worker_xiaomi(self):
+        while True:
+            self._brute_pause_event.wait()
+            if self._brute_stop_flag:
+                break
+            try:
+                item = self._brute_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if item is None:
+                break
+            device, rom, android_ver, template = item
+
+            fp = template
+            if '{DEVICE}' in template:
+                fp = fp.replace('{DEVICE}', device)
+            if '{ROM}' in template:
+                fp = fp.replace('{ROM}', rom)
+            if '{AND}' in template:
+                fp = fp.replace('{AND}', android_ver)
+
+            max_retries = 3
+            for attempt in range(max_retries):
+                if self._brute_stop_flag:
+                    break
+                self._brute_pause_event.wait()
+                if self._brute_stop_flag:
+                    break
+                try:
+                    parsed = parse_fingerprint_xiaomi(fp)
+                    decrypted, raw_text = perform_checkin_xiaomi(
+                        parsed['codename'], parsed['rom_version'], parsed['android_version'])
+                    if not raw_text:
+                        if attempt == max_retries - 1:
+                            self._brute_log(f"  DEVICE={device} ROM={rom} AND={android_ver} → no response (after {max_retries} retries)", 'skip')
+                            self._brute_increment_progress()
+                        else:
+                            time.sleep(1)
+                        continue
+                    details = extract_build_details_xiaomi(decrypted)
+                    if details.get('found') and details.get('download_url'):
+                        ota = {
+                            'url': details['download_url'],
+                            'title': _stringify_ota_field(details.get('bigversion_label') or details.get('version', '')),
+                            'description': _flatten_xiaomi_changelog(details.get('changelog')),
+                            'size': _stringify_ota_field(details.get('filesize', '')),
+                        }
+                    else:
+                        ota = None
+                    self._brute_process_result(fp, device, rom, android_ver, "", ota)
+                    self._brute_increment_progress()
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        self._brute_log(f"  DEVICE={device} ROM={rom} AND={android_ver} → ERROR: {e} (after {max_retries} retries)", 'error')
+                        self._brute_increment_progress()
+                    else:
+                        time.sleep(1)
+
     def _brute_process_result(self, fp, build_tag, key_type, inc, loc, ota):
         skip_dupes = self.brute_skip_dupes_var.get()
         pause_on_find = self.brute_stop_on_find_var.get()
         save_otas = self.brute_save_otas_var.get()
 
+        if self.os_mode_var.get() == "xiaomi":
+            label = f"DEVICE={build_tag} ROM={key_type} AND={inc}"
+        elif self.os_mode_var.get() == "chromeos":
+            label = f"BOARD={build_tag} TRACK={key_type} VER={inc}"
+        else:
+            label = f"BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc}"
+
         if ota is None:
-            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → no OTA", 'skip')
+            self._brute_log(f"  {label} → no OTA", 'skip')
             return
         url = ota.get('url')
         if not url:
-            self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → no OTA URL", 'skip')
+            self._brute_log(f"  {label} → no OTA URL", 'skip')
             return
 
         title = ota.get('title', '')
@@ -1854,16 +2141,16 @@ class OTAProberGUI:
 
         if is_duplicate:
             if skip_dupes:
-                self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → OTA found (duplicate URL and metadata, skipped)", 'skip')
+                self._brute_log(f"  {label} → OTA found (duplicate URL and metadata, skipped)", 'skip')
             else:
-                self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → OTA found (duplicate URL and metadata)", 'found')
+                self._brute_log(f"  {label} → OTA found (duplicate URL and metadata)", 'found')
             return
 
         # Log the result
         if is_new:
             local_count = len(self._brute_found_data)
             self._brute_log(f"", 'found')
-            self._brute_log(f"  ★ NEW #{local_count}  BUILD={build_tag}  KEY={key_type}  INC={inc}  LOCALE={loc}", 'found')
+            self._brute_log(f"  ★ NEW #{local_count}  {label}", 'found')
             self._brute_log(f"    Fingerprint : {fp}", 'found')
             self._brute_log(f"    URL         : {url}", 'found')
             if title:
@@ -1888,7 +2175,7 @@ class OTAProberGUI:
                 change_msg = "OTA metadata updated (UPDATED)"
             local_count = len(self._brute_found_data)
             self._brute_log(f"", 'changed')
-            self._brute_log(f"  ⚡ {change_msg}  BUILD={build_tag}  KEY={key_type}  INC={inc}  LOCALE={loc}", 'changed')
+            self._brute_log(f"  ⚡ {change_msg}  {label}", 'changed')
             self._brute_log(f"    Fingerprint : {fp}", 'changed')
             self._brute_log(f"    URL         : {url}", 'changed')
             if title:
@@ -2132,6 +2419,12 @@ class OTAProberGUI:
                         self.html_frame.load_html(html_content)
                     elif self.desc_text:
                         self.desc_text.insert(tk.END, output_str)
+                    if ota_link and ota_link.get('url'):
+                        self.status_icon_var.set("✓")
+                        self.status_icon_label.config(foreground='#006600')
+                    else:
+                        self.status_icon_var.set("❌")
+                        self.status_icon_label.config(foreground='#cc0000')
                 else:
                     self.format_and_log_output(fingerprint, settings, build_info, ota_link)
 
@@ -2221,6 +2514,12 @@ class OTAProberGUI:
                         self.html_frame.load_html(f"<pre>{output_str}</pre>")
                     elif self.desc_text:
                         self.desc_text.insert(tk.END, output_str)
+                    if ota_link and ota_link.get('url'):
+                        self.status_icon_var.set("✓")
+                        self.status_icon_label.config(foreground='#006600')
+                    else:
+                        self.status_icon_var.set("❌")
+                        self.status_icon_label.config(foreground='#cc0000')
                 else:
                     self.format_and_log_output(fingerprint, {}, build_info, ota_link)
 
@@ -2336,6 +2635,8 @@ class OTAProberGUI:
                         "Double-check the codename, ROM version and Android version.",
                         'error'
                     )
+                    self.status_icon_var.set("❌")
+                    self.status_icon_label.config(foreground='#cc0000')
                 else:
                     bigver = details.get('bigversion_label')
                     build_info = {
@@ -2365,6 +2666,12 @@ class OTAProberGUI:
                             self.html_frame.load_html(f"<pre>{output_str}</pre>")
                         elif self.desc_text:
                             self.desc_text.insert(tk.END, output_str)
+                        if ota_dict and ota_dict.get('url'):
+                            self.status_icon_var.set("✓")
+                            self.status_icon_label.config(foreground='#006600')
+                        else:
+                            self.status_icon_var.set("❌")
+                            self.status_icon_label.config(foreground='#cc0000')
                     else:
                     # Передаємо ota_dict замість рядка
                         self.format_and_log_output(fingerprint, {}, build_info, ota_dict)
@@ -2444,7 +2751,7 @@ class OTAProberGUI:
             self.log_output(f"  Device Country:    {build_info['device_country']}", 'info')
 
         self.log_output("\n[OTA UPDATE]", 'section')
-        if ota_link:
+        if ota_link and ota_link.get('url'):
             self.status_icon_var.set("✓")
             self.status_icon_label.config(foreground='#006600')
 
@@ -2931,6 +3238,84 @@ def extract_build_details_xiaomi(decrypted_response):
         'changelog': current.get('changelog'),
         'raw': decrypted_response,
     }
+
+
+def _stringify_ota_field(value):
+    """
+    Coerces a value that's supposed to be a simple display field (title,
+    size, etc.) into a plain string, in case the MIUI response returns a
+    dict/list instead of a scalar. Keeps the (title, desc, size) metadata
+    tuple used for bruteforce duplicate-detection hashable.
+    """
+    if value is None:
+        return ''
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return str(value)
+
+
+def _flatten_xiaomi_changelog(changelog):
+    """
+    MIUI's 'changelog' field is often a dict keyed by language (e.g.
+    {"txt": [...]} or {"en": "...", "zh": "..."}) rather than a plain
+    string. Flatten it into readable text so it can be logged and safely
+    used inside a hashable metadata tuple.
+    """
+    if not changelog:
+        return ''
+    if isinstance(changelog, str):
+        return changelog
+    if isinstance(changelog, list):
+        parts = []
+        for item in changelog:
+            if isinstance(item, dict):
+                # Common shape: {"txt": "...", "title": "..."} per entry
+                txt = item.get('txt') or item.get('title') or item.get('name')
+                if txt:
+                    parts.append(str(txt))
+            elif item:
+                parts.append(str(item))
+        return ' | '.join(parts)
+    if isinstance(changelog, dict):
+        # Direct shape: {"txt": [...], "en": "...", ...}
+        parts = []
+        for key in ('txt', 'en', 'en_US', 'title'):
+            val = changelog.get(key)
+            if isinstance(val, list):
+                parts.extend(str(v) for v in val if v)
+            elif val:
+                parts.append(str(val))
+        if parts:
+            return ' | '.join(parts)
+
+        # Nested shape actually returned by MIUI's changelog field:
+        # {"System": {"txt": [...], "title": "..."}, "Security": {...}, ...}
+        # i.e. a dict keyed by *category name*, each value itself a dict
+        # with its own 'txt'/'title' list/string. Flatten every category.
+        nested_parts = []
+        for category, value in changelog.items():
+            if isinstance(value, dict):
+                cat_texts = []
+                for key in ('txt', 'en', 'en_US', 'title'):
+                    val = value.get(key)
+                    if isinstance(val, list):
+                        cat_texts.extend(str(v) for v in val if v)
+                    elif val:
+                        cat_texts.append(str(val))
+                if cat_texts:
+                    nested_parts.append(f"{category}: " + ' | '.join(cat_texts))
+            elif isinstance(value, list):
+                cat_texts = [str(v) for v in value if v]
+                if cat_texts:
+                    nested_parts.append(f"{category}: " + ' | '.join(cat_texts))
+            elif value:
+                nested_parts.append(f"{category}: {value}")
+        if nested_parts:
+            return '\n'.join(nested_parts)
+
+        # Fall back to a compact JSON dump so nothing is silently lost
+        return json.dumps(changelog, ensure_ascii=False, sort_keys=True)
+    return str(changelog)
 
 
 def build_checkin_request_chromeos(fingerprint, app_id, arch="x86_64", hardware_class=None):
@@ -3699,6 +4084,84 @@ def _find_zip_metadata_entry(tail_blob: bytes, tail_offset: int):
     return None
 
 
+# Known filler/dummy entry names used by "dummy OTA" packages, where the
+# real update-binary/metadata are empty placeholders and a single large
+# padding file (usually random bytes) is added just to reach a target
+# download size.
+DUMMY_OTA_FILLER_NAMES = (b'filler.dat', b'filler.bin', b'padding.dat', b'filler')
+
+
+def _scan_zip_central_directory(tail_blob: bytes, tail_offset: int):
+    """
+    Walk the whole central directory inside `tail_blob` and return a list of
+    (name, compressed_size, uncompressed_size, compression_method,
+    local_header_offset) for every entry, or [] if the EOCD/CD isn't found
+    inside this chunk.
+    """
+    entries = []
+    eocd_pos = tail_blob.rfind(EOCD_SIG)
+    if eocd_pos == -1:
+        return entries
+
+    try:
+        cd_size = struct.unpack('<I', tail_blob[eocd_pos + 12:eocd_pos + 16])[0]
+        cd_offset = struct.unpack('<I', tail_blob[eocd_pos + 16:eocd_pos + 20])[0]
+    except struct.error:
+        return entries
+
+    cd_start_in_blob = cd_offset - tail_offset
+    if cd_start_in_blob < 0:
+        return entries
+
+    pos = cd_start_in_blob
+    end = cd_start_in_blob + cd_size
+    while pos < end and pos < len(tail_blob) - 46:
+        if tail_blob[pos:pos + 4] != CDFH_SIG:
+            break
+        compression_method = struct.unpack('<H', tail_blob[pos + 10:pos + 12])[0]
+        compressed_size = struct.unpack('<I', tail_blob[pos + 20:pos + 24])[0]
+        uncompressed_size = struct.unpack('<I', tail_blob[pos + 24:pos + 28])[0]
+        name_len = struct.unpack('<H', tail_blob[pos + 28:pos + 30])[0]
+        extra_len = struct.unpack('<H', tail_blob[pos + 30:pos + 32])[0]
+        comment_len = struct.unpack('<H', tail_blob[pos + 32:pos + 34])[0]
+        local_header_offset = struct.unpack('<I', tail_blob[pos + 42:pos + 46])[0]
+        name = tail_blob[pos + 46:pos + 46 + name_len]
+
+        entries.append((name, compressed_size, uncompressed_size,
+                         compression_method, local_header_offset))
+
+        pos += 46 + name_len + extra_len + comment_len
+
+    return entries
+
+
+def _detect_dummy_ota(tail_blob: bytes, tail_offset: int):
+    """
+    Detect "dummy"/placeholder OTA packages: the metadata entry exists but
+    is empty (0 bytes), and the ZIP contains a large filler/padding entry
+    added purely to hit a target file size. Returns a dict describing the
+    filler (name, size) if this looks like a dummy OTA, else None.
+    """
+    entries = _scan_zip_central_directory(tail_blob, tail_offset)
+    if not entries:
+        return None
+
+    metadata_entry = None
+    filler_entry = None
+    for name, csize, usize, method, offset in entries:
+        if name == b'META-INF/com/android/metadata':
+            metadata_entry = (csize, usize)
+        lower_name = name.lower()
+        if any(lower_name.endswith(fn) or fn in lower_name for fn in DUMMY_OTA_FILLER_NAMES):
+            if filler_entry is None or usize > filler_entry[1]:
+                filler_entry = (name.decode(errors='replace'), usize)
+
+    if metadata_entry is not None and metadata_entry[1] == 0 and filler_entry is not None:
+        return {'filler_name': filler_entry[0], 'filler_size': filler_entry[1]}
+
+    return None
+
+
 # Допоміжна функція для пошуку локального заголовка в голові
 def _find_local_metadata_header(data: bytes, offset: int = 0):
     """Find local file header for META-INF/com/android/metadata in a byte chunk."""
@@ -3784,6 +4247,25 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
             out['bytes_scanned'] += len(tail_data)
         except Exception as e:
             errors.append(f"Tail fetch failed: {e}")
+
+    # ── Dummy/placeholder OTA detection ──────────────────────────────────
+    # Some OTA packages (e.g. size-filler test builds) ship a genuinely
+    # empty META-INF/com/android/metadata entry plus a large filler/padding
+    # file of random bytes just to hit a target download size. Random
+    # bytes can coincidentally match one of PAYLOAD_METADATA_PREFIXES,
+    # which would otherwise make Strategy 1 misparse garbage as a fake
+    # local file header (e.g. "Unsupported compression method 28885").
+    # Detect this case up front via a clean central-directory walk.
+    if tail_data:
+        dummy_info = _detect_dummy_ota(tail_data, tail_offset)
+        if dummy_info:
+            out['found'] = False
+            out['dummy'] = True
+            out['filler_name'] = dummy_info['filler_name']
+            out['filler_size'] = dummy_info['filler_size']
+            out['source'] = 'ZIP central directory (dummy OTA detection)'
+            out['error'] = "Dummy OTA file."
+            return out
 
     # ── Strategy 1: naive scan of tail chunk (works if STORED) ──────────
     if tail_data:
