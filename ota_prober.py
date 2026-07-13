@@ -37,11 +37,6 @@ except ImportError:
     HtmlFrame = None
     TkwNotebook = None
 
-# tkinterweb.Notebook is a documented drop-in replacement for ttk.Notebook
-# that avoids a known crash: Tkhtml (the HTML engine behind HtmlFrame) is
-# incompatible with ttk.Notebook on 64-bit Windows and crashes when a tab
-# containing an HtmlFrame is revisited. See:
-# https://tkinterweb.readthedocs.io/en/latest/faq.html
 NOTEBOOK_CLS = TkwNotebook if TkwNotebook else ttk.Notebook
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -582,6 +577,11 @@ class OTAProberGUI:
         self.keyscan_button.pack(side=tk.LEFT, padx=5)
         self._keyscan_button_pack_info = {'side': tk.LEFT, 'padx': 5}
 
+        self.keyscan_stop_button = ttk.Button(button_frame, text="⏹ Stop Scan", command=self.on_keyscan_stop_click, state=tk.DISABLED)
+        self.keyscan_stop_button.pack(side=tk.LEFT, padx=5)
+        self._keyscan_stop_button_pack_info = {'side': tk.LEFT, 'padx': 5}
+        self._keyscan_stop_event = threading.Event()
+
         self.clear_button = ttk.Button(button_frame, text="Clear Output", command=self.on_clear_click)
         self.clear_button.pack(side=tk.LEFT, padx=5)
 
@@ -818,9 +818,12 @@ class OTAProberGUI:
         # Show/hide the "Scan Key Types" button (Android only — not ChromeOS or Xiaomi)
         if is_cros or is_xiaomi:
             self.keyscan_button.pack_forget()
+            self.keyscan_stop_button.pack_forget()
         else:
             if not self.keyscan_button.winfo_ismapped():
                 self.keyscan_button.pack(before=self.clear_button, **self._keyscan_button_pack_info)
+            if not self.keyscan_stop_button.winfo_ismapped():
+                self.keyscan_stop_button.pack(before=self.clear_button, **self._keyscan_stop_button_pack_info)
 
         # Show/hide the "Scan Locales" row (Android only — not ChromeOS or Xiaomi)
         if is_cros or is_xiaomi:
@@ -831,10 +834,16 @@ class OTAProberGUI:
             self.scan_locales_entry.grid()
 
         # Show/hide Payload Metadata / Alternative Filenames sub-tabs
-        # inside the HTTP Info tab (Android only) — bug 4
+        # inside the HTTP Info tab. Payload Metadata: Android + Xiaomi only
+        # (not ChromeOS). Alternative Filenames: Android only (not ChromeOS
+        # or Xiaomi — bug 4).
         if hasattr(self, '_cros_hidden_httpinfo_tabs'):
             for frame, tab_text in self._cros_hidden_httpinfo_tabs:
-                if is_cros:
+                if tab_text == "Alternative Filenames":
+                    should_hide = is_cros or is_xiaomi
+                else:
+                    should_hide = is_cros
+                if should_hide:
                     try:
                         self.httpinfo_nb.forget(frame)
                     except Exception:
@@ -1099,8 +1108,12 @@ class OTAProberGUI:
         self.httpinfo_progress.start(12)
 
         if current_tab_text in ("Payload Metadata", "Alternative Filenames"):
-            self.httpinfo_status_var.set("Fetching metadata and alternative filenames…")
-            self._httpinfo_pending_jobs = 2
+            # Scan the currently-active tab (metadata / alternative names)
+            # FIRST, before touching general/headers/etc. Those other
+            # sections are refreshed afterwards in the background so they
+            # don't delay the thing the person is actually looking at.
+            self.httpinfo_status_var.set("Checking alternative filenames and metadata…")
+            self._httpinfo_pending_jobs = 3
 
             for ch in self.hi_tree_metadata.get_children():
                 self.hi_tree_metadata.delete(ch)
@@ -1109,8 +1122,14 @@ class OTAProberGUI:
             self.hi_list_altnames.delete(0, tk.END)
             self.hi_list_altnames.insert(tk.END, "Checking…")
 
+            self._httpinfo_last_result = None
+
             threading.Thread(target=self._httpinfo_metadata_worker, args=(url,), daemon=True).start()
             threading.Thread(target=self._httpinfo_altnames_worker, args=(url,), daemon=True).start()
+            # Runs concurrently in the background; the general/headers/etc.
+            # trees just get filled in whenever this finishes, without
+            # blocking or reordering the metadata/altnames scan above.
+            threading.Thread(target=self._httpinfo_worker, args=(url,), daemon=True).start()
 
         else:
             self.httpinfo_status_var.set("Probing…")
@@ -2537,9 +2556,16 @@ class OTAProberGUI:
         self.keyscan_button.config(state=tk.DISABLED)
         self.clear_button.config(state=tk.DISABLED)
         self.fingerprint_entry.config(state=tk.DISABLED)
+        self.keyscan_stop_button.config(state=tk.NORMAL)
+        self._keyscan_stop_event.clear()
 
         self.keyscan_thread = threading.Thread(target=self.perform_keyscan, args=(fingerprint,), daemon=True)
         self.keyscan_thread.start()
+
+    def on_keyscan_stop_click(self):
+        self._keyscan_stop_event.set()
+        self.keyscan_stop_button.config(state=tk.DISABLED)
+        self.update_status("Stopping key scan…")
 
     def perform_keyscan(self, fingerprint):
         try:
@@ -2590,9 +2616,16 @@ class OTAProberGUI:
             total = len(key_types) * len(locales)
             counter = 0
 
+            stopped = False
             for loc in locales:
+                if self._keyscan_stop_event.is_set():
+                    stopped = True
+                    break
                 tz = LOCALE_TZ_MAP.get(loc, 'America/New_York')
                 for key in key_types:
+                    if self._keyscan_stop_event.is_set():
+                        stopped = True
+                        break
                     counter += 1
                     test_fp = f"{prefix}:{key}"
                     self.log_output(f"[{counter}/{total}] Locale: {loc}  Key: {key}", 'section')
@@ -2622,6 +2655,8 @@ class OTAProberGUI:
                     self.log_output("", 'info')
 
             self.log_output("=" * 75, 'header')
+            if stopped:
+                self.log_output(f"SCAN STOPPED by user after {counter}/{total} checked", 'error')
             if found_links:
                 self.log_output(f"SUMMARY: Found {len(found_links)} OTA link(s)", 'success')
                 for key, loc, url, title, size in found_links:
@@ -2634,7 +2669,8 @@ class OTAProberGUI:
                 self.log_output("SUMMARY: No OTA links found for any key type or locale", 'error')
             self.log_output("=" * 75, 'header')
 
-            self.update_status(f"Key scan completed – {len(found_links)} OTA(s) found", 'success' if found_links else 'error')
+            status_prefix = "Key scan stopped" if stopped else "Key scan completed"
+            self.update_status(f"{status_prefix} – {len(found_links)} OTA(s) found", 'success' if found_links else 'error')
             self.status_icon_var.set("✓" if found_links else "❌")
 
         except ValueError as e:
@@ -2648,6 +2684,7 @@ class OTAProberGUI:
             self.keyscan_button.config(state=tk.NORMAL)
             self.clear_button.config(state=tk.NORMAL)
             self.fingerprint_entry.config(state=tk.NORMAL)
+            self.keyscan_stop_button.config(state=tk.DISABLED)
 
 
 # ── Helper functions ──────────────────────────────────────────────────────
@@ -3968,7 +4005,7 @@ def build_alternative_filenames(sha1: str, device: str, post_build_id: str,
         names.append(f"{sha1}.signed-signed-{device}-{post_build_id}-from-{pre_build_id}.{short}.zip")
     elif post_build_id and incremental:
         names.append(f"{sha1}.signed-{device}-ota-{incremental}.zip")
-        names.append(f"{sha1}.signed-signed{device}-ota-{incremental}.zip")
+        names.append(f"{sha1}.signed-signed-{device}-ota-{incremental}.zip")
 
     return names
 
@@ -4022,6 +4059,41 @@ def probe_alternative_filenames(url: str, last_modified: str,
 
     out = {'checked': False, 'reason': None, 'results': []}
 
+    base_url = url
+    if 'ota-api' in base_url:
+        base_url = base_url.replace('ota-api', 'ota')
+
+    parsed = urlparse(base_url)
+    dir_path = parsed.path.rsplit('/', 1)[0] + '/'
+    base_prefix = f"{parsed.scheme}://{parsed.netloc}{dir_path}"
+    sha1 = _extract_sha1_from_url(base_url)
+
+    original_fname = parsed.path.rsplit('/', 1)[-1]
+
+    # Old-style filenames (e.g. sha1.signed-bass-LDZ22D-from-LJZ13E.short.zip
+    # or sha1.Dotasigned-...zip) are unambiguous on their own — they already
+    # tell us this is the legacy naming scheme, so we don't need (and must
+    # not require) the Last-Modified date to match the legacy era before
+    # trying the trimmed sha1.zip variant.
+    if '.signed-' in original_fname or '.Dotasigned-' in original_fname:
+        # The link already uses the signed-*/Dotasigned-* naming scheme, so
+        # there's no need to brute-force every historical pattern — just
+        # strip whatever comes after the sha1 (keeping only the .zip
+        # extension) and check whether that trimmed-down name resolves on
+        # its own.
+        trimmed_name = f"{sha1}.zip"
+        candidates = [trimmed_name] if trimmed_name != original_fname else []
+        if not candidates:
+            out['reason'] = "Filename is already a bare sha1.zip — nothing to trim"
+            return out
+        out['checked'] = True
+        _s("Checking trimmed sha1.zip variant…")
+        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+        return out
+
+    # For a bare sha1.zip-style URL there's no naming-scheme hint in the
+    # filename itself, so we fall back to the Last-Modified date to decide
+    # whether it's worth brute-forcing the full legacy pattern set.
     if not last_modified or not last_modified.strip().startswith(LEGACY_LASTMOD_PREFIX):
         out['reason'] = f"Last-Modified doesn't match legacy date ({LEGACY_LASTMOD_PREFIX})"
         return out
@@ -4039,32 +4111,6 @@ def probe_alternative_filenames(url: str, last_modified: str,
             incremental = parse_fingerprint(post_build_fingerprint)['incremental']
         except Exception:
             incremental = None
-
-    base_url = url
-    if 'ota-api' in base_url:
-        base_url = base_url.replace('ota-api', 'ota')
-
-    parsed = urlparse(base_url)
-    dir_path = parsed.path.rsplit('/', 1)[0] + '/'
-    base_prefix = f"{parsed.scheme}://{parsed.netloc}{dir_path}"
-    sha1 = _extract_sha1_from_url(base_url)
-
-    original_fname = parsed.path.rsplit('/', 1)[-1]
-
-    if '.signed-' in original_fname:
-        # The link already uses the signed-* naming scheme, so there's no
-        # need to brute-force every historical pattern — just strip
-        # whatever comes after the sha1 (keeping only the .zip extension)
-        # and check whether that trimmed-down name resolves on its own.
-        trimmed_name = f"{sha1}.zip"
-        candidates = [trimmed_name] if trimmed_name != original_fname else []
-        if not candidates:
-            out['reason'] = "Filename is already a bare sha1.zip — nothing to trim"
-            return out
-        out['checked'] = True
-        _s("Checking trimmed sha1.zip variant…")
-        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
-        return out
 
     candidates = build_alternative_filenames(sha1, device, post_build_id, pre_build_id, incremental)
 
