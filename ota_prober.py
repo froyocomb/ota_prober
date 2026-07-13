@@ -37,11 +37,6 @@ except ImportError:
     HtmlFrame = None
     TkwNotebook = None
 
-# tkinterweb.Notebook is a documented drop-in replacement for ttk.Notebook
-# that avoids a known crash: Tkhtml (the HTML engine behind HtmlFrame) is
-# incompatible with ttk.Notebook on 64-bit Windows and crashes when a tab
-# containing an HtmlFrame is revisited. See:
-# https://tkinterweb.readthedocs.io/en/latest/faq.html
 NOTEBOOK_CLS = TkwNotebook if TkwNotebook else ttk.Notebook
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -305,6 +300,226 @@ CROS_BOARD_HWID_MAP = {
 }
 CROS_TRACKS = ['stable-channel', 'beta-channel', 'dev-channel', 'canary-channel']
 CROS_AUSERVER = 'https://tools.google.com/service/update2'
+
+# =========================================================================
+#  ДОДАТКОВА ФУНКЦІЯ ДЛЯ ОТРИМАННЯ ZIP ДЕРЕВА
+# =========================================================================
+def fetch_zip_tree(url, status_cb=None, timeout=30):
+    """
+    Завантажує центральний каталог ZIP-файлу (без повного завантаження)
+    і повертає список словників з інформацією про кожен запис.
+    """
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    # 1. Отримати розмір файлу через HEAD
+    try:
+        head_req = urllib.request.Request(url, method='HEAD', headers={
+            'User-Agent': 'AndroidDownloadManager/14',
+            'Accept-Encoding': 'identity',
+        })
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(head_req, timeout=timeout, context=ctx) as resp:
+            total_size = int(resp.headers.get('Content-Length', '0') or '0')
+    except Exception as e:
+        raise RuntimeError(f"HEAD request failed: {e}")
+
+    if total_size <= 0:
+        raise RuntimeError("Unable to determine file size (Content-Length missing)")
+
+    # 2. Завантажити останні 64KB для пошуку EOCD
+    chunk_size = 64 * 1024
+    tail_offset = max(0, total_size - chunk_size)
+    range_hdr = f'bytes={tail_offset}-{total_size-1}'
+    _s(f"Fetching last {chunk_size//1024} KB...")
+
+    try:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'AndroidDownloadManager/14',
+            'Accept-Encoding': 'identity',
+            'Range': range_hdr,
+        })
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            tail_data = resp.read()
+    except Exception as e:
+        raise RuntimeError(f"Tail fetch failed: {e}")
+
+    # 3. Знайти EOCD (End of Central Directory)
+    eocd_pos = tail_data.rfind(b'PK\x05\x06')
+    if eocd_pos == -1:
+        raise RuntimeError("ZIP End of Central Directory not found in tail chunk")
+
+    try:
+        cd_size = struct.unpack('<I', tail_data[eocd_pos+12:eocd_pos+16])[0]
+        cd_offset = struct.unpack('<I', tail_data[eocd_pos+16:eocd_pos+20])[0]
+    except struct.error:
+        raise RuntimeError("Invalid EOCD structure")
+
+    # 4. Завантажити центральний каталог (якщо він не помістився в tail)
+    cd_start = cd_offset
+    cd_end = cd_offset + cd_size
+    cd_data = b''
+
+    if cd_start >= tail_offset and cd_end <= total_size:
+        # Каталог повністю в tail
+        start_in_tail = cd_start - tail_offset
+        cd_data = tail_data[start_in_tail:start_in_tail + cd_size]
+    else:
+        # Завантажити потрібний діапазон
+        range_hdr = f'bytes={cd_start}-{cd_end-1}'
+        _s(f"Fetching central directory ({cd_size} bytes)...")
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'AndroidDownloadManager/14',
+            'Accept-Encoding': 'identity',
+            'Range': range_hdr,
+        })
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            cd_data = resp.read()
+
+    if len(cd_data) < cd_size:
+        raise RuntimeError("Incomplete central directory data")
+
+    # 5. Парсити записи центрального каталогу
+    entries = []
+    pos = 0
+    while pos + 46 <= len(cd_data):
+        if cd_data[pos:pos+4] != b'PK\x01\x02':
+            break
+        try:
+            compression_method = struct.unpack('<H', cd_data[pos+10:pos+12])[0]
+            file_time = struct.unpack('<H', cd_data[pos+12:pos+14])[0]
+            file_date = struct.unpack('<H', cd_data[pos+14:pos+16])[0]
+            crc32 = struct.unpack('<I', cd_data[pos+16:pos+20])[0]
+            compressed_size = struct.unpack('<I', cd_data[pos+20:pos+24])[0]
+            uncompressed_size = struct.unpack('<I', cd_data[pos+24:pos+28])[0]
+            name_len = struct.unpack('<H', cd_data[pos+28:pos+30])[0]
+            extra_len = struct.unpack('<H', cd_data[pos+30:pos+32])[0]
+            comment_len = struct.unpack('<H', cd_data[pos+32:pos+34])[0]
+            local_header_offset = struct.unpack('<I', cd_data[pos+42:pos+46])[0]
+            name = cd_data[pos+46:pos+46+name_len].decode('utf-8', errors='replace')
+            pos += 46 + name_len + extra_len + comment_len
+        except struct.error:
+            break
+
+        # Перетворити DOS-дату/час у читабельний формат
+        try:
+            year = ((file_date >> 9) & 0x7F) + 1980
+            month = (file_date >> 5) & 0x0F
+            day = file_date & 0x1F
+            hour = (file_time >> 11) & 0x1F
+            minute = (file_time >> 5) & 0x3F
+            second = (file_time & 0x1F) * 2
+            date_str = f"{year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d}"
+        except:
+            date_str = ""
+
+        entries.append({
+            'name': name,
+            'uncompressed_size': uncompressed_size,
+            'compressed_size': compressed_size,
+            'crc32': crc32,
+            'date': date_str,
+            'compression_method': compression_method,
+            'local_header_offset': local_header_offset,
+            'is_dir': name.endswith('/'),
+        })
+
+    return entries
+
+
+def fetch_zip_tree_local(path, status_cb=None):
+    """
+    Local-file counterpart of fetch_zip_tree(): parses the ZIP central
+    directory straight from disk instead of making range requests.
+    Returns the same list-of-dicts format.
+    """
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    total_size = os.path.getsize(path)
+    if total_size <= 0:
+        raise RuntimeError("File is empty")
+
+    chunk_size = 64 * 1024
+    tail_offset = max(0, total_size - chunk_size)
+    _s(f"Reading last {chunk_size//1024} KB...")
+    with open(path, 'rb') as f:
+        f.seek(tail_offset)
+        tail_data = f.read()
+
+    eocd_pos = tail_data.rfind(b'PK\x05\x06')
+    if eocd_pos == -1:
+        raise RuntimeError("ZIP End of Central Directory not found in tail chunk")
+
+    try:
+        cd_size = struct.unpack('<I', tail_data[eocd_pos+12:eocd_pos+16])[0]
+        cd_offset = struct.unpack('<I', tail_data[eocd_pos+16:eocd_pos+20])[0]
+    except struct.error:
+        raise RuntimeError("Invalid EOCD structure")
+
+    cd_start = cd_offset
+    cd_end = cd_offset + cd_size
+    cd_data = b''
+
+    if cd_start >= tail_offset and cd_end <= total_size:
+        start_in_tail = cd_start - tail_offset
+        cd_data = tail_data[start_in_tail:start_in_tail + cd_size]
+    else:
+        _s(f"Reading central directory ({cd_size} bytes)...")
+        with open(path, 'rb') as f:
+            f.seek(cd_start)
+            cd_data = f.read(cd_size)
+
+    if len(cd_data) < cd_size:
+        raise RuntimeError("Incomplete central directory data")
+
+    entries = []
+    pos = 0
+    while pos + 46 <= len(cd_data):
+        if cd_data[pos:pos+4] != b'PK\x01\x02':
+            break
+        try:
+            compression_method = struct.unpack('<H', cd_data[pos+10:pos+12])[0]
+            file_time = struct.unpack('<H', cd_data[pos+12:pos+14])[0]
+            file_date = struct.unpack('<H', cd_data[pos+14:pos+16])[0]
+            crc32 = struct.unpack('<I', cd_data[pos+16:pos+20])[0]
+            compressed_size = struct.unpack('<I', cd_data[pos+20:pos+24])[0]
+            uncompressed_size = struct.unpack('<I', cd_data[pos+24:pos+28])[0]
+            name_len = struct.unpack('<H', cd_data[pos+28:pos+30])[0]
+            extra_len = struct.unpack('<H', cd_data[pos+30:pos+32])[0]
+            comment_len = struct.unpack('<H', cd_data[pos+32:pos+34])[0]
+            local_header_offset = struct.unpack('<I', cd_data[pos+42:pos+46])[0]
+            name = cd_data[pos+46:pos+46+name_len].decode('utf-8', errors='replace')
+            pos += 46 + name_len + extra_len + comment_len
+        except struct.error:
+            break
+
+        try:
+            year = ((file_date >> 9) & 0x7F) + 1980
+            month = (file_date >> 5) & 0x0F
+            day = file_date & 0x1F
+            hour = (file_time >> 11) & 0x1F
+            minute = (file_time >> 5) & 0x3F
+            second = (file_time & 0x1F) * 2
+            date_str = f"{year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d}"
+        except:
+            date_str = ""
+
+        entries.append({
+            'name': name,
+            'uncompressed_size': uncompressed_size,
+            'compressed_size': compressed_size,
+            'crc32': crc32,
+            'date': date_str,
+            'compression_method': compression_method,
+            'local_header_offset': local_header_offset,
+            'is_dir': name.endswith('/'),
+        })
+
+    return entries
+
 
 class OTAProberGUI:
     def __init__(self, root):
@@ -716,6 +931,63 @@ class OTAProberGUI:
         else:
             self.params_frame.grid()          # показуємо
 
+        # Якщо перейшли на вкладку HTTP Info - синхронізуємо стан під-вкладок
+        if tab_text == "HTTP Info":
+            self._on_httpinfo_subtab_changed()
+
+    def _on_httpinfo_subtab_changed(self, event=None):
+        """
+        Keeps two things in sync with whichever HTTP Info sub-tab is
+        currently active:
+        - the "Open local file…" button only makes sense for Payload
+          Metadata / Alternative Filenames / ZIP Tree (the ones that work
+          off a raw ZIP central directory); General/Headers/Redirects/
+          Security/Timing all need a real HTTP response, so the button is
+          hidden there.
+        - switching to ZIP Tree auto-scans it, same as before.
+        """
+        try:
+            sub_tab = self.httpinfo_nb.select()
+            sub_text = self.httpinfo_nb.tab(sub_tab, "text")
+        except Exception:
+            return
+
+        local_capable_tabs = ("Payload Metadata", "ZIP Tree")
+        if hasattr(self, 'httpinfo_local_btn'):
+            if sub_text in local_capable_tabs:
+                if not self.httpinfo_local_btn.winfo_ismapped():
+                    self.httpinfo_local_btn.pack(side=tk.LEFT, padx=(8, 0))
+            else:
+                self.httpinfo_local_btn.pack_forget()
+
+        if sub_text == "ZIP Tree":
+            has_source = bool(self.httpinfo_url_var.get().strip()) or bool(self.httpinfo_local_path)
+            if has_source and not self.zip_tree.get_children():
+                self._httpinfo_zip_tree_scan()
+
+    def _httpinfo_choose_local_file(self):
+        path = filedialog.askopenfilename(
+            title="Choose OTA / ZIP file",
+            filetypes=[("ZIP / OTA files", "*.zip *.bin"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+        self.httpinfo_local_path = path
+        # Clear whatever URL was there and cached results tied to it — a
+        # local file is now the active data source for the sub-tabs.
+        self.httpinfo_url_var.set(path)
+        self.zip_tree_cache = {
+            'url': None,
+            'tail_data': None,
+            'tail_offset': 0,
+            'total_size': 0,
+            'entries': None,
+        }
+        for child in self.zip_tree.get_children():
+            self.zip_tree.delete(child)
+        self.httpinfo_status_var.set(f"Local file selected: {os.path.basename(path)}")
+        self._httpinfo_start()
+
     def _on_cros_board_preset_selected(self, event):
         board = self.cros_board_preset_var.get().strip()
         if board == '(custom)' or board not in CROS_BOARD_APPID_MAP:
@@ -843,9 +1115,9 @@ class OTAProberGUI:
 
             self.brute_inc_lf.configure(text="Incremental Range")
             self.brute_inc_row_labels[0].config(text="Start:")
-            if self.brute_inc_start_var.get() in (cros_start, xiaomi_start):
+            if self.brute_inc_start_var.get() in (android_start, cros_start):
                 self.brute_inc_start_var.set(android_start)
-            if self.brute_inc_end_var.get() in (cros_end, xiaomi_end):
+            if self.brute_inc_end_var.get() in (android_end, cros_end):
                 self.brute_inc_end_var.set(android_end)
 
             self.brute_appid_row.pack_forget()
@@ -900,6 +1172,26 @@ class OTAProberGUI:
                         self.httpinfo_nb.add(frame, text=tab_text)
                     except Exception:
                         pass  # already present
+
+        # ── Hide/Show ZIP Tree tab (ChromeOS and Xiaomi: hidden) ──────────
+        # ZIP Tree is Android-only now. It must ALWAYS be the last tab in
+        # the notebook, no matter how many times the OS mode gets switched
+        # around — so instead of trying to remember/restore some index, we
+        # unconditionally forget() it and then re-add() it at the current
+        # end, right after the Payload Metadata / Alternative Filenames
+        # tabs above have already been settled for this mode. That way its
+        # position never drifts, and re-adding an already-removed tab is a
+        # cheap no-op either way.
+        if hasattr(self, 'zip_tree_frame'):
+            try:
+                self.httpinfo_nb.forget(self.zip_tree_frame)
+            except Exception:
+                pass
+            if not (is_cros or is_xiaomi):
+                try:
+                    self.httpinfo_nb.add(self.zip_tree_frame, text="ZIP Tree")
+                except Exception:
+                    pass
 
         # Locale/Timezone params only make sense for Android checkin — bug 3
         # (delegate to the same logic used on tab change so behaviour stays
@@ -1007,6 +1299,18 @@ class OTAProberGUI:
                                              command=self._httpinfo_start)
         self.httpinfo_fetch_btn.pack(side=tk.LEFT)
 
+        # Local-file mode: lets the user analyze a .zip already on disk
+        # (Payload Metadata / Alternative Filenames / ZIP Tree only —
+        # General/Headers/Redirects/Security/Timing all need a real HTTP
+        # response, so this button only appears while one of those three
+        # sub-tabs is active; see _on_tab_changed).
+        self.httpinfo_local_path = None
+        self.httpinfo_local_btn = ttk.Button(url_lf, text="📂 Open local file…",
+                                              command=self._httpinfo_choose_local_file)
+        self.httpinfo_local_btn.pack(side=tk.LEFT, padx=(8, 0))
+        # Hidden until a relevant sub-tab is selected
+        self.httpinfo_local_btn.pack_forget()
+
         self.httpinfo_status_var = tk.StringVar(value="Enter an OTA URL and press Fetch")
         ttk.Label(wrapper, textvariable=self.httpinfo_status_var,
                   foreground='#0066cc').pack(anchor=tk.W, pady=(0, 4))
@@ -1015,6 +1319,7 @@ class OTAProberGUI:
 
         self.httpinfo_nb = NOTEBOOK_CLS(wrapper)
         self.httpinfo_nb.pack(fill=tk.BOTH, expand=True)
+        self.httpinfo_nb.bind('<<NotebookTabChanged>>', self._on_httpinfo_subtab_changed)
 
         def _make_tree(parent, col1="Field", col2="Value"):
             f = ttk.Frame(parent)
@@ -1160,20 +1465,73 @@ class OTAProberGUI:
 
         self.hi_list_altnames.bind('<<ListboxSelect>>', _copy_alt_selection)
 
-        self._httpinfo_last_result = None
-        self._httpinfo_metadata_loaded = False
-        self._httpinfo_altnames_loaded = False
-        self._httpinfo_pending_jobs = 0
+        # ==================================================================
+        #  НОВА ВКЛАДКА ZIP TREE (без горизонтального скролбару)
+        # ==================================================================
+        self.zip_tree_frame = ttk.Frame(self.httpinfo_nb)
+        # Запам'ятовуємо індекс для можливого перевставлення
+        self.zip_tree_tab_index = len(self.httpinfo_nb.tabs())
+        self.httpinfo_nb.add(self.zip_tree_frame, text="ZIP Tree")
+
+        # Верхня панель з кнопками
+        zip_toolbar = ttk.Frame(self.zip_tree_frame)
+        zip_toolbar.pack(fill=tk.X, pady=(0, 4))
+
+        ttk.Button(zip_toolbar, text="Scan ZIP Tree", command=self._httpinfo_zip_tree_scan).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Button(zip_toolbar, text="Expand All", command=self._zip_tree_expand_all).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(zip_toolbar, text="Collapse All", command=self._zip_tree_collapse_all).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(zip_toolbar, text="Copy Path", command=self._zip_tree_copy_path).pack(side=tk.LEFT, padx=(0, 12))
+
+        self.zip_tree_status_var = tk.StringVar(value="Press 'Scan ZIP Tree' to view contents.")
+        status_lbl = ttk.Label(zip_toolbar, textvariable=self.zip_tree_status_var, foreground='#0066cc')
+        status_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Treeview з колонками — ТІЛЬКИ ВЕРТИКАЛЬНИЙ СКРОЛБАР
+        self.zip_tree = ttk.Treeview(self.zip_tree_frame, columns=("size", "comp", "ratio", "date", "crc"), show="tree headings")
+        self.zip_tree.heading("#0", text="Name")
+        self.zip_tree.heading("size", text="Uncompressed")
+        self.zip_tree.heading("comp", text="Compressed")
+        self.zip_tree.heading("ratio", text="Ratio")
+        self.zip_tree.heading("date", text="Date")
+        self.zip_tree.heading("crc", text="CRC32")
+        self.zip_tree.column("#0", width=350)
+        self.zip_tree.column("size", width=120, anchor=tk.E)
+        self.zip_tree.column("comp", width=120, anchor=tk.E)
+        self.zip_tree.column("ratio", width=80, anchor=tk.E)
+        self.zip_tree.column("date", width=150)
+        self.zip_tree.column("crc", width=100, anchor=tk.CENTER)
+
+        vsb = ttk.Scrollbar(self.zip_tree_frame, orient=tk.VERTICAL, command=self.zip_tree.yview)
+        self.zip_tree.configure(yscrollcommand=vsb.set)
+        self.zip_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Кеш для ZIP Tree (зберігаємо дані, щоб не робити повторні запити)
+        self.zip_tree_cache = {
+            'url': None,
+            'tail_data': None,
+            'tail_offset': 0,
+            'total_size': 0,
+            'entries': None,
+        }
+
         self._cros_hidden_httpinfo_tabs = [
             (meta_f, "Payload Metadata"),
             (alt_f, "Alternative Filenames"),
         ]
+
+        self._httpinfo_last_result = None
+        self._httpinfo_metadata_loaded = False
+        self._httpinfo_altnames_loaded = False
+        self._httpinfo_pending_jobs = 0
 
     def _httpinfo_start(self):
         url = self.httpinfo_url_var.get().strip()
         if not url:
             messagebox.showerror("HTTP Info", "Please enter an OTA URL first.")
             return
+
+        is_local = bool(self.httpinfo_local_path) and self.httpinfo_local_path == url
 
         try:
             current_tab_text = self.httpinfo_nb.tab(self.httpinfo_nb.select(), 'text')
@@ -1183,7 +1541,26 @@ class OTAProberGUI:
         self.httpinfo_fetch_btn.config(state=tk.DISABLED)
         self.httpinfo_progress.start(12)
 
-        if current_tab_text in ("Payload Metadata", "Alternative Filenames"):
+        if is_local:
+            # Local file: only Payload Metadata and ZIP Tree apply (both
+            # driven off the same on-disk central directory scan).
+            # Alternative Filenames and the HTTP-only tabs
+            # (General/Headers/Redirects/Security/Timing) don't make sense
+            # for a file that's already on disk, so we skip them entirely.
+            self.httpinfo_status_var.set(f"Reading local file: {os.path.basename(self.httpinfo_local_path)}")
+            self._httpinfo_pending_jobs = 1
+
+            for ch in self.hi_tree_metadata.get_children():
+                self.hi_tree_metadata.delete(ch)
+            self.hi_metadata_status_var.set("Loading…")
+
+            self.hi_list_altnames.delete(0, tk.END)
+            self.hi_list_altnames.insert(tk.END, "Not applicable for local files.")
+
+            self._httpinfo_last_result = None
+            threading.Thread(target=self._httpinfo_metadata_worker, args=(url,), daemon=True).start()
+
+        elif current_tab_text in ("Payload Metadata", "Alternative Filenames"):
             # Scan the currently-active tab (metadata / alternative names)
             # FIRST, before touching general/headers/etc. Those other
             # sections are refreshed afterwards in the background so they
@@ -1235,18 +1612,110 @@ class OTAProberGUI:
 
     def _httpinfo_metadata_worker(self, url):
         try:
-            meta = fetch_payload_metadata(url, status_cb=lambda m: self.root.after(
-                0, self.hi_metadata_status_var.set, m))
+            is_local = bool(self.httpinfo_local_path) and self.httpinfo_local_path == url
+            # Запитуємо метадані з поверненням сирих даних хвоста
+            result = fetch_payload_metadata(
+                url, status_cb=lambda m: self.root.after(0, self.hi_metadata_status_var.set, m),
+                return_raw_tail=True,
+                local_path=url if is_local else None)
+            meta = result['metadata']
             self.root.after(0, self._httpinfo_display_metadata, meta)
+
+            # Зберігаємо кеш для ZIP Tree
+            if result.get('tail_data'):
+                self.zip_tree_cache['url'] = url
+                self.zip_tree_cache['tail_data'] = result['tail_data']
+                self.zip_tree_cache['tail_offset'] = result['tail_offset']
+                self.zip_tree_cache['total_size'] = result['total_size']
+                # Парсимо записи з отриманих даних
+                entries = self._parse_zip_entries_from_tail(
+                    result['tail_data'],
+                    result['tail_offset'],
+                    result['total_size']
+                )
+                self.zip_tree_cache['entries'] = entries
+                # Показуємо дерево, якщо вкладка активна або для кешу
+                self.root.after(0, lambda: self._httpinfo_display_zip_tree(entries))
+            else:
+                self.zip_tree_cache['url'] = None
+                self.zip_tree_cache['entries'] = None
+
         except Exception as exc:
             self.root.after(0, self.hi_metadata_status_var.set, f"Metadata error: {exc}")
         finally:
             self.root.after(0, self._httpinfo_done)
 
+    def _parse_zip_entries_from_tail(self, tail_data, tail_offset, total_size):
+        """Парсить центральний каталог з даних хвоста, повертає список записів."""
+        entries = []
+        eocd_pos = tail_data.rfind(b'PK\x05\x06')
+        if eocd_pos == -1:
+            return entries
+        try:
+            cd_size = struct.unpack('<I', tail_data[eocd_pos+12:eocd_pos+16])[0]
+            cd_offset = struct.unpack('<I', tail_data[eocd_pos+16:eocd_pos+20])[0]
+        except struct.error:
+            return entries
+
+        cd_start = cd_offset
+        cd_end = cd_offset + cd_size
+        cd_data = b''
+
+        if cd_start >= tail_offset and cd_end <= total_size:
+            start_in_tail = cd_start - tail_offset
+            cd_data = tail_data[start_in_tail:start_in_tail + cd_size]
+        else:
+            # Якщо каталог не помістився в хвості – повертаємо порожній список
+            return entries
+
+        pos = 0
+        while pos + 46 <= len(cd_data):
+            if cd_data[pos:pos+4] != b'PK\x01\x02':
+                break
+            try:
+                compression_method = struct.unpack('<H', cd_data[pos+10:pos+12])[0]
+                file_time = struct.unpack('<H', cd_data[pos+12:pos+14])[0]
+                file_date = struct.unpack('<H', cd_data[pos+14:pos+16])[0]
+                crc32 = struct.unpack('<I', cd_data[pos+16:pos+20])[0]
+                compressed_size = struct.unpack('<I', cd_data[pos+20:pos+24])[0]
+                uncompressed_size = struct.unpack('<I', cd_data[pos+24:pos+28])[0]
+                name_len = struct.unpack('<H', cd_data[pos+28:pos+30])[0]
+                extra_len = struct.unpack('<H', cd_data[pos+30:pos+32])[0]
+                comment_len = struct.unpack('<H', cd_data[pos+32:pos+34])[0]
+                local_header_offset = struct.unpack('<I', cd_data[pos+42:pos+46])[0]
+                name = cd_data[pos+46:pos+46+name_len].decode('utf-8', errors='replace')
+                pos += 46 + name_len + extra_len + comment_len
+            except struct.error:
+                break
+
+            try:
+                year = ((file_date >> 9) & 0x7F) + 1980
+                month = (file_date >> 5) & 0x0F
+                day = file_date & 0x1F
+                hour = (file_time >> 11) & 0x1F
+                minute = (file_time >> 5) & 0x3F
+                second = (file_time & 0x1F) * 2
+                date_str = f"{year:04d}-{month:02d}-{day:02d} {hour:02d}:{minute:02d}:{second:02d}"
+            except:
+                date_str = ""
+
+            entries.append({
+                'name': name,
+                'uncompressed_size': uncompressed_size,
+                'compressed_size': compressed_size,
+                'crc32': crc32,
+                'date': date_str,
+                'compression_method': compression_method,
+                'local_header_offset': local_header_offset,
+                'is_dir': name.endswith('/'),
+            })
+
+        return entries
+
     def _httpinfo_altnames_worker(self, url):
         meta = {}
         try:
-            meta = fetch_payload_metadata(url)
+            meta = fetch_payload_metadata(url)  # без raw tail
         except Exception:
             pass
 
@@ -1335,8 +1804,13 @@ class OTAProberGUI:
             for k, v in fields.items():
                 self.hi_tree_metadata.insert("", tk.END, values=(k, v))
             _autosize_value_column(fields.values())
-            self.hi_metadata_status_var.set(
-                f"Found in {meta.get('source', '?')} — {len(fields)} field(s)")
+            if meta.get('is_hboot'):
+                self.hi_metadata_status_var.set(
+                    "No Android metadata file — this is an HBOOT image "
+                    f"(hboot.img). Version info from {meta.get('source', '?')}.")
+            else:
+                self.hi_metadata_status_var.set(
+                    f"Found in {meta.get('source', '?')} — {len(fields)} field(s)")
         else:
             err = meta.get('error') or "No metadata fields found (package may not expose plaintext metadata)."
             self.hi_metadata_status_var.set(err.strip(' |'))
@@ -1355,6 +1829,212 @@ class OTAProberGUI:
 
         for url in working:
             self.hi_list_altnames.insert(tk.END, url)
+
+    # ======================================================================
+    #  МЕТОДИ ДЛЯ РОБОТИ З ZIP TREE (з використанням кешу)
+    # ======================================================================
+    def _httpinfo_zip_tree_scan(self):
+        """Запускає сканування ZIP дерева для поточного URL, використовуючи кеш або новий запит."""
+        url = self.httpinfo_url_var.get().strip()
+        if not url:
+            messagebox.showerror("ZIP Tree", "Please enter an OTA URL first.")
+            return
+
+        # Очистити попереднє дерево
+        for child in self.zip_tree.get_children():
+            self.zip_tree.delete(child)
+        self.zip_tree_status_var.set("Scanning...")
+        self.httpinfo_progress.start(12)
+        self.httpinfo_fetch_btn.config(state=tk.DISABLED)
+
+        threading.Thread(target=self._httpinfo_zip_tree_worker, args=(url,), daemon=True).start()
+
+    def _httpinfo_zip_tree_worker(self, url):
+        # Перевіряємо кеш
+        entries = None
+        is_local = bool(self.httpinfo_local_path) and self.httpinfo_local_path == url
+        if self.zip_tree_cache.get('url') == url and self.zip_tree_cache.get('entries') is not None:
+            entries = self.zip_tree_cache['entries']
+            self.root.after(0, lambda: self.zip_tree_status_var.set("Using cached data..."))
+        else:
+            try:
+                if is_local:
+                    entries = fetch_zip_tree_local(
+                        url,
+                        status_cb=lambda m: self.root.after(0, self.zip_tree_status_var.set, m)
+                    )
+                else:
+                    entries = fetch_zip_tree(
+                        url,
+                        status_cb=lambda m: self.root.after(0, self.zip_tree_status_var.set, m)
+                    )
+                # Зберігаємо в кеш
+                self.zip_tree_cache['url'] = url
+                self.zip_tree_cache['entries'] = entries
+            except Exception as e:
+                self.root.after(0, self.zip_tree_status_var.set, f"Error: {e}")
+                self.root.after(0, self._httpinfo_zip_tree_done)
+                return
+
+        self.root.after(0, self._httpinfo_display_zip_tree, entries)
+        self.root.after(0, self._httpinfo_zip_tree_done)
+
+    def _httpinfo_zip_tree_done(self):
+        self.httpinfo_progress.stop()
+        self.httpinfo_fetch_btn.config(state=tk.NORMAL)
+        if self.zip_tree_status_var.get() in ("Scanning...", "Loading..."):
+            self.zip_tree_status_var.set("Ready")
+
+    def _httpinfo_display_zip_tree(self, entries):
+        """Побудова дерева зі списку записів (виправлена версія)."""
+        # Очистити дерево
+        for child in self.zip_tree.get_children():
+            self.zip_tree.delete(child)
+
+        if not entries:
+            self.zip_tree_status_var.set("No entries found in ZIP (maybe empty or unsupported).")
+            return
+
+        # Статистика
+        total_files = 0
+        total_uncomp = 0
+        total_comp = 0
+        dir_paths = set()
+
+        # Будуємо дерево шляхів
+        tree_dict = {}  # шлях -> dict (папка) або entry (файл)
+        for entry in entries:
+            name = entry['name']
+            # видаляємо зайві слеші
+            if name.endswith('/'):
+                name = name[:-1]
+            parts = name.split('/')
+            # якщо це директорія (закінчується на '/' в оригіналі або parts[-1] == '')
+            is_dir = entry.get('is_dir', False) or entry['name'].endswith('/') or parts[-1] == ''
+            if is_dir:
+                # додаємо папку в дерево
+                current = tree_dict
+                path_so_far = []
+                for part in parts:
+                    if part == '':
+                        continue
+                    path_so_far.append(part)
+                    key = '/'.join(path_so_far)
+                    dir_paths.add(key)
+                    if key not in current:
+                        current[key] = {}
+                    current = current[key]
+            else:
+                total_files += 1
+                total_uncomp += entry['uncompressed_size']
+                total_comp += entry['compressed_size']
+                # додаємо файл у відповідну папку
+                if len(parts) == 1:
+                    # файл в корені
+                    tree_dict[parts[0]] = entry
+                else:
+                    # шлях до папки
+                    parent_path = '/'.join(parts[:-1])
+                    parent = tree_dict
+                    # переконуємося, що всі батьківські папки створені
+                    if parent_path:
+                        path_so_far = []
+                        for p in parent_path.split('/'):
+                            path_so_far.append(p)
+                            dir_paths.add('/'.join(path_so_far))
+                            if p not in parent:
+                                parent[p] = {}
+                            parent = parent[p]
+                    parent[parts[-1]] = entry
+
+        # Кількість директорій = кількість УНІКАЛЬНИХ шляхів папок, підрахованих
+        # як з явних записів-директорій у ZIP, так і виведених з шляхів файлів
+        # (більшість ZIP-архівів не зберігають окремі записи для папок взагалі,
+        # тож рахувати лише явні is_dir-записи майже завжди дає 0).
+        total_dirs = len(dir_paths)
+
+        # Рекурсивне додавання вузлів
+        def add_nodes(parent_node, node_dict):
+            for key, value in sorted(node_dict.items()):
+                if isinstance(value, dict) and 'name' not in value:
+                    # це папка (словник без ключа 'name')
+                    node = self.zip_tree.insert(parent_node, tk.END, text=key, values=("", "", "", "", ""), open=False)
+                    add_nodes(node, value)
+                    self.zip_tree.item(node, values=("(folder)", "", "", "", ""))
+                else:
+                    # це файл (запис з ключами)
+                    entry = value
+                    uncomp = entry['uncompressed_size']
+                    comp = entry['compressed_size']
+                    ratio = f"{comp/uncomp*100:.1f}%" if uncomp > 0 else "0%"
+                    size_str = f"{uncomp/1024/1024:.2f} MB" if uncomp > 1024*1024 else f"{uncomp/1024:.1f} KB"
+                    comp_str = f"{comp/1024/1024:.2f} MB" if comp > 1024*1024 else f"{comp/1024:.1f} KB"
+                    self.zip_tree.insert(parent_node, tk.END, text=key,
+                                         values=(size_str, comp_str, ratio, entry.get('date', ''), f"{entry.get('crc32', 0):08X}"))
+
+        # Додаємо кореневі елементи
+        for key, value in sorted(tree_dict.items()):
+            if isinstance(value, dict) and 'name' not in value:
+                node = self.zip_tree.insert("", tk.END, text=key, values=("", "", "", "", ""), open=False)
+                add_nodes(node, value)
+                self.zip_tree.item(node, values=("(folder)", "", "", "", ""))
+            else:
+                # файл у корені
+                entry = value
+                uncomp = entry['uncompressed_size']
+                comp = entry['compressed_size']
+                ratio = f"{comp/uncomp*100:.1f}%" if uncomp > 0 else "0%"
+                size_str = f"{uncomp/1024/1024:.2f} MB" if uncomp > 1024*1024 else f"{uncomp/1024:.1f} KB"
+                comp_str = f"{comp/1024/1024:.2f} MB" if comp > 1024*1024 else f"{comp/1024:.1f} KB"
+                self.zip_tree.insert("", tk.END, text=key,
+                                     values=(size_str, comp_str, ratio, entry.get('date', ''), f"{entry.get('crc32', 0):08X}"))
+
+        # Оновлюємо статус
+        total = total_files + total_dirs
+        size_mb = total_uncomp / (1024*1024)
+        comp_mb = total_comp / (1024*1024)
+        self.zip_tree_status_var.set(
+            f"Total: {total_files} files, {total_dirs} directories, "
+            f"uncompressed {size_mb:.2f} MB, compressed {comp_mb:.2f} MB"
+        )
+
+    def _zip_tree_expand_all(self):
+        """Розгорнути всі вузли дерева."""
+        for child in self.zip_tree.get_children():
+            self._expand_recursive(child)
+
+    def _expand_recursive(self, node):
+        self.zip_tree.item(node, open=True)
+        for child in self.zip_tree.get_children(node):
+            self._expand_recursive(child)
+
+    def _zip_tree_collapse_all(self):
+        """Згорнути всі вузли дерева."""
+        for child in self.zip_tree.get_children():
+            self.zip_tree.item(child, open=False)
+            self._collapse_recursive(child)
+
+    def _collapse_recursive(self, node):
+        for child in self.zip_tree.get_children(node):
+            self.zip_tree.item(child, open=False)
+            self._collapse_recursive(child)
+
+    def _zip_tree_copy_path(self):
+        """Копіює повний шлях вибраного вузла в буфер обміну."""
+        sel = self.zip_tree.selection()
+        if not sel:
+            return
+        node = sel[0]
+        # Зібрати шлях від кореня до цього вузла
+        path_parts = []
+        while node:
+            text = self.zip_tree.item(node, 'text')
+            path_parts.append(text)
+            node = self.zip_tree.parent(node)
+        full_path = '/'.join(reversed(path_parts))
+        self.root.clipboard_clear()
+        self.root.clipboard_append(full_path)
+        self.zip_tree_status_var.set(f"Copied: {full_path}")
 
     # ── Bruteforce tab ─────────────────────────────────────────────────────
     def _build_bruteforce_tab(self):
@@ -4039,12 +4719,13 @@ def _parse_all_metadata_lines(blob: bytes, known_prefixes) -> dict:
     return result
 
 
-def _find_zip_metadata_entry(tail_blob: bytes, tail_offset: int):
+def _find_zip_entry_by_predicate(tail_blob: bytes, tail_offset: int, name_matches):
     """
     Look for the End Of Central Directory record inside `tail_blob`, then
-    walk the central directory to find the META-INF/com/android/metadata
-    entry. Returns (local_header_offset, compressed_size, compression_method,
-    file_name) or None if not found.
+    walk the central directory looking for the first entry whose name
+    (as raw bytes) satisfies `name_matches(name_bytes)`. Returns
+    (local_header_offset, compressed_size, compression_method, file_name)
+    or None if not found.
     """
     eocd_pos = tail_blob.rfind(EOCD_SIG)
     if eocd_pos == -1:
@@ -4076,12 +4757,114 @@ def _find_zip_metadata_entry(tail_blob: bytes, tail_offset: int):
         local_header_offset = struct.unpack('<I', tail_blob[pos + 42:pos + 46])[0]
         name = tail_blob[pos + 46:pos + 46 + name_len]
 
-        if name == b'META-INF/com/android/metadata':
-            return local_header_offset, compressed_size, compression_method, name.decode()
+        if name_matches(name):
+            return local_header_offset, compressed_size, compression_method, name.decode(errors='replace')
 
         pos += 46 + name_len + extra_len + comment_len
 
     return None
+
+
+def _find_zip_metadata_entry(tail_blob: bytes, tail_offset: int):
+    """
+    Look for the META-INF/com/android/metadata entry in the central
+    directory. Returns (local_header_offset, compressed_size,
+    compression_method, file_name) or None if not found.
+    """
+    return _find_zip_entry_by_predicate(
+        tail_blob, tail_offset,
+        lambda name: name == b'META-INF/com/android/metadata')
+
+
+def _find_zip_hboot_entry(tail_blob: bytes, tail_offset: int):
+    """
+    Look for an 'hboot.img' file sitting directly in the ZIP's root
+    directory (not nested inside subfolders) in the central directory.
+    Returns (local_header_offset, compressed_size, compression_method,
+    file_name) or None if not found.
+    """
+    def _is_root_hboot(name: bytes) -> bool:
+        try:
+            lname = name.decode('utf-8', errors='replace').lower()
+        except Exception:
+            return False
+        return lname == 'hboot.img'
+
+    return _find_zip_entry_by_predicate(tail_blob, tail_offset, _is_root_hboot)
+
+
+def _extract_printable_strings(blob: bytes, min_len: int = 4):
+    """
+    Extract runs of printable ASCII (and a few common separators like '.',
+    '-', '_') from a binary blob, similar to the Unix `strings` tool.
+    Returns a list of decoded strings, in the order they appear, keeping
+    only runs at least `min_len` bytes long.
+    """
+    strings = []
+    current = bytearray()
+
+    def _flush():
+        if len(current) >= min_len:
+            strings.append(current.decode('ascii', errors='replace'))
+        current.clear()
+
+    for b in blob:
+        # printable ASCII range, tab excluded on purpose (binary noise)
+        if 0x20 <= b <= 0x7E:
+            current.append(b)
+        else:
+            _flush()
+    _flush()
+    return strings
+
+
+def _extract_hboot_info(head_blob: bytes) -> dict:
+    """
+    Pull an HBOOT image's version banner out of the first chunk of the raw
+    file. HTC/many OEM hboot.img files start with a small header followed
+    by a block of plain, null-padded ASCII strings such as:
+
+        7201A SPL EVT...
+        7201A SPL EVT
+        SHIP.G
+        HBOOT-7201A...
+        dirty-55326161...
+
+    (see the offsets 0x10-0x40 in a typical hex dump). We don't try to
+    parse a rigid binary struct here since the exact layout varies between
+    OEMs/chips — instead we scan for printable-ASCII runs near the start
+    of the file and surface the ones that look like version/build info.
+    This is intentionally forgiving: better to show a few extra strings
+    than to silently show nothing because of a struct mismatch.
+    """
+    info = {
+        'raw_strings': [],
+        'hboot_version': None,
+        'build_type': None,   # e.g. SHIP, ENG
+        'variant': None,      # e.g. SPL, EVT
+        'dirty_tag': None,    # e.g. dirty-55326161
+    }
+
+    # HBOOT version banners live very early in the file — no need to scan
+    # more than the first few KiB.
+    scan_region = head_blob[:4096]
+    strings = _extract_printable_strings(scan_region, min_len=3)
+    info['raw_strings'] = strings
+
+    for s in strings:
+        su = s.upper()
+        if su.startswith('HBOOT-') and info['hboot_version'] is None:
+            info['hboot_version'] = s
+        elif su in ('SHIP', 'ENG', 'ENG.G', 'SHIP.G') and info['build_type'] is None:
+            info['build_type'] = s
+        elif su.startswith('DIRTY-') and info['dirty_tag'] is None:
+            info['dirty_tag'] = s
+        elif ('SPL' in su or 'EVT' in su or 'DVT' in su or 'PVT' in su) and info['variant'] is None:
+            # Skip anything already captured as hboot_version/build_type
+            if not su.startswith('HBOOT-') and su not in ('SHIP', 'ENG', 'ENG.G', 'SHIP.G'):
+                info['variant'] = s
+
+    return info
 
 
 # Known filler/dummy entry names used by "dummy OTA" packages, where the
@@ -4188,7 +4971,9 @@ def _find_local_metadata_header(data: bytes, offset: int = 0):
 
 
 def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
-                            chunk_bytes: int = 2 * 1024 * 1024) -> dict:
+                            chunk_bytes: int = 2 * 1024 * 1024,
+                            return_raw_tail: bool = False,
+                            local_path: str = None):
     """
     Fetch OTA package metadata (pre/post build fingerprints, security patch
     level, timestamp, etc.) without downloading the whole file.
@@ -4197,6 +4982,11 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
     1) ZIP central directory in the tail (most reliable)
     2) local header search in the head (if metadata is near the start)
     3) naive key scan in head (known prefixes only, no garbage)
+
+    If return_raw_tail is True, returns a dict with 'metadata' and raw tail data.
+
+    If `local_path` is given, reads from that file on disk instead of
+    making any network requests (`url` is still used only for messages).
     """
     def _s(msg):
         if status_cb:
@@ -4210,35 +5000,48 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
         'bytes_scanned': 0,
     }
     errors = []
-
-    def _get_range(range_header):
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
-            'Accept-Encoding': 'identity',
-            'Range': range_header,
-        })
-        ctx = ssl.create_default_context()
-        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-            return resp.read()
-
-    def _head_size():
-        head_req = urllib.request.Request(url, method='HEAD', headers={
-            'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
-            'Accept-Encoding': 'identity',
-        })
-        ctx = ssl.create_default_context()
-        with urllib.request.urlopen(head_req, timeout=timeout, context=ctx) as resp:
-            return int(resp.headers.get('Content-Length', '0') or '0')
-
+    tail_data = b''
+    tail_offset = 0
     total_size = 0
+
+    if local_path:
+        def _get_range(range_header):
+            # range_header looks like 'bytes=START-END'
+            spec = range_header.split('=', 1)[1]
+            start_s, end_s = spec.split('-', 1)
+            start = int(start_s)
+            end = int(end_s)
+            with open(local_path, 'rb') as f:
+                f.seek(start)
+                return f.read(end - start + 1)
+
+        def _head_size():
+            return os.path.getsize(local_path)
+    else:
+        def _get_range(range_header):
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
+                'Accept-Encoding': 'identity',
+                'Range': range_header,
+            })
+            ctx = ssl.create_default_context()
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                return resp.read()
+
+        def _head_size():
+            head_req = urllib.request.Request(url, method='HEAD', headers={
+                'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
+                'Accept-Encoding': 'identity',
+            })
+            ctx = ssl.create_default_context()
+            with urllib.request.urlopen(head_req, timeout=timeout, context=ctx) as resp:
+                return int(resp.headers.get('Content-Length', '0') or '0')
+
     try:
         total_size = _head_size()
     except Exception as e:
         errors.append(f"HEAD size lookup failed: {e}")
 
-    # ── Tail fetch ──────────────────────────────────────────────────────────
-    tail_data = b''
-    tail_offset = 0
     if total_size > 0:
         try:
             tail_offset = max(0, total_size - chunk_bytes)
@@ -4248,14 +5051,6 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
         except Exception as e:
             errors.append(f"Tail fetch failed: {e}")
 
-    # ── Dummy/placeholder OTA detection ──────────────────────────────────
-    # Some OTA packages (e.g. size-filler test builds) ship a genuinely
-    # empty META-INF/com/android/metadata entry plus a large filler/padding
-    # file of random bytes just to hit a target download size. Random
-    # bytes can coincidentally match one of PAYLOAD_METADATA_PREFIXES,
-    # which would otherwise make Strategy 1 misparse garbage as a fake
-    # local file header (e.g. "Unsupported compression method 28885").
-    # Detect this case up front via a clean central-directory walk.
     if tail_data:
         dummy_info = _detect_dummy_ota(tail_data, tail_offset)
         if dummy_info:
@@ -4265,9 +5060,10 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
             out['filler_size'] = dummy_info['filler_size']
             out['source'] = 'ZIP central directory (dummy OTA detection)'
             out['error'] = "Dummy OTA file."
+            if return_raw_tail:
+                return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
             return out
 
-    # ── Strategy 1: naive scan of tail chunk (works if STORED) ──────────
     if tail_data:
         anchor = -1
         for prefix in PAYLOAD_METADATA_PREFIXES:
@@ -4298,15 +5094,18 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
                 out['found'] = True
                 out['fields'] = fields
                 out['source'] = f'tail raw scan ({len(tail_data):,} bytes)'
+                if return_raw_tail:
+                    return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
                 return out
         fields = _extract_metadata_kv(tail_data, PAYLOAD_METADATA_PREFIXES)
         if fields:
             out['found'] = True
             out['fields'] = fields
             out['source'] = f'tail raw scan ({len(tail_data):,} bytes, partial)'
+            if return_raw_tail:
+                return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
             return out
 
-    # ── Strategy 2: proper ZIP central-directory parse (handles DEFLATE) ──
     if tail_data:
         try:
             _s("Parsing ZIP central directory…")
@@ -4357,6 +5156,8 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
                             out['found'] = True
                             out['fields'] = fields
                             out['source'] = f'ZIP entry {name} (method={compression_method})'
+                            if return_raw_tail:
+                                return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
                             return out
                         else:
                             errors.append(
@@ -4369,7 +5170,6 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
         except Exception as e:
             errors.append(f"ZIP parse failed: {e}")
 
-    # ── Strategy 3: ZIP local header in head ──────────────────────────────
     if not out['found'] and total_size > 0:
         head_size = min(total_size, chunk_bytes)
         head_data = b''
@@ -4414,11 +5214,12 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
                         out['found'] = True
                         out['fields'] = fields
                         out['source'] = f'ZIP entry from head {name} (method={compression_method})'
+                        if return_raw_tail:
+                            return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
                         return out
                     else:
                         errors.append("Head metadata entry decoded but no known keys matched")
 
-    # ── Strategy 4: naive key scan in head (known prefixes only) ──────────
     if not out['found'] and total_size > 0:
         if 'head_data' not in locals() or not head_data:
             try:
@@ -4435,9 +5236,94 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
                 out['found'] = True
                 out['fields'] = fields
                 out['source'] = f'head raw scan (known prefixes only, {len(head_data):,} bytes)'
+                if return_raw_tail:
+                    return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
                 return out
 
+    # ── HBOOT OTA fallback ────────────────────────────────────────────
+    # Some packages (e.g. HTC-style bootloader-only OTAs) don't ship a
+    # META-INF/com/android/metadata file at all. In that case, check
+    # whether there's an hboot.img sitting at the root of the ZIP; if so,
+    # this isn't a "no metadata found" failure — it's an HBOOT image, and
+    # we can still surface useful info (its version banner) instead of
+    # just reporting an error.
+    if not out['found'] and tail_data:
+        try:
+            _s("No metadata file — checking for hboot.img…")
+            hboot_entry = _find_zip_hboot_entry(tail_data, tail_offset)
+            if hboot_entry:
+                local_header_offset, compressed_size, compression_method, name = hboot_entry
+
+                lh_start_in_tail = local_header_offset - tail_offset
+                if 0 <= lh_start_in_tail and lh_start_in_tail + 30 <= len(tail_data):
+                    lh_blob = tail_data
+                    lh_pos = lh_start_in_tail
+                else:
+                    _s("Fetching hboot.img local file header…")
+                    lh_blob = _get_range(f'bytes={local_header_offset}-{local_header_offset + 4096}')
+                    out['bytes_scanned'] += len(lh_blob)
+                    lh_pos = 0
+
+                hboot_plain = b''
+                if lh_blob[lh_pos:lh_pos + 4] == LFH_SIG:
+                    name_len = struct.unpack('<H', lh_blob[lh_pos + 26:lh_pos + 28])[0]
+                    extra_len = struct.unpack('<H', lh_blob[lh_pos + 28:lh_pos + 30])[0]
+                    data_start_in_lh_blob = lh_pos + 30 + name_len + extra_len
+
+                    # We only need the first few KiB of the decompressed
+                    # image to find the version banner, so cap how much we
+                    # fetch/decompress even if the entry itself is large.
+                    want_bytes = min(compressed_size, 65536) if compression_method == 8 else min(compressed_size, 4096)
+
+                    if data_start_in_lh_blob + want_bytes <= len(lh_blob):
+                        entry_data = lh_blob[data_start_in_lh_blob:data_start_in_lh_blob + want_bytes]
+                    else:
+                        abs_data_start = local_header_offset + 30 + name_len + extra_len
+                        _s(f"Fetching {name} header bytes…")
+                        entry_data = _get_range(
+                            f'bytes={abs_data_start}-{abs_data_start + want_bytes - 1}')
+                        out['bytes_scanned'] += len(entry_data)
+
+                    if compression_method == 0:
+                        hboot_plain = entry_data
+                    elif compression_method == 8:
+                        try:
+                            d = zlib.decompressobj(-15)
+                            hboot_plain = d.decompress(entry_data, 8192)
+                        except Exception as e:
+                            errors.append(f"hboot.img inflate failed: {e}")
+                            hboot_plain = b''
+                    else:
+                        errors.append(f"hboot.img unsupported compression method {compression_method}")
+
+                if hboot_plain:
+                    hboot_info = _extract_hboot_info(hboot_plain)
+                    out['found'] = True
+                    out['is_hboot'] = True
+                    out['hboot_info'] = hboot_info
+                    fields = {}
+                    fields['image-type'] = 'HBOOT image'
+                    if hboot_info.get('hboot_version'):
+                        fields['hboot-version'] = hboot_info['hboot_version']
+                    if hboot_info.get('variant'):
+                        fields['variant'] = hboot_info['variant']
+                    if hboot_info.get('build_type'):
+                        fields['build-type'] = hboot_info['build_type']
+                    if hboot_info.get('dirty_tag'):
+                        fields['dirty-tag'] = hboot_info['dirty_tag']
+                    out['fields'] = fields
+                    out['source'] = f'hboot.img banner scan ({name})'
+                    if return_raw_tail:
+                        return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
+                    return out
+                else:
+                    errors.append("hboot.img found but banner could not be decoded")
+        except Exception as e:
+            errors.append(f"hboot.img check failed: {e}")
+
     out['error'] = " | ".join(errors) if errors else "metadata not found in head or tail"
+    if return_raw_tail:
+        return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
     return out
 
 
