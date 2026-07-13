@@ -19,14 +19,30 @@ import queue
 import time
 import ssl
 import http.client
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode
 import struct
 import zlib
+import base64
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad, unpad
+    XIAOMI_CRYPTO_AVAILABLE = True
+except ImportError:
+    XIAOMI_CRYPTO_AVAILABLE = False
 
 try:
     from tkinterweb import HtmlFrame
+    from tkinterweb import Notebook as TkwNotebook
 except ImportError:
     HtmlFrame = None
+    TkwNotebook = None
+
+# tkinterweb.Notebook is a documented drop-in replacement for ttk.Notebook
+# that avoids a known crash: Tkhtml (the HTML engine behind HtmlFrame) is
+# incompatible with ttk.Notebook on 64-bit Windows and crashes when a tab
+# containing an HtmlFrame is revisited. See:
+# https://tkinterweb.readthedocs.io/en/latest/faq.html
+NOTEBOOK_CLS = TkwNotebook if TkwNotebook else ttk.Notebook
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -471,23 +487,25 @@ class OTAProberGUI:
         self.os_mode_var = tk.StringVar(value="android")
         ttk.Radiobutton(mode_frame, text="Android", variable=self.os_mode_var,
                         value="android", command=self._on_os_mode_changed).grid(row=0, column=0, padx=(0, 15))
+        ttk.Radiobutton(mode_frame, text="Xiaomi", variable=self.os_mode_var,
+                        value="xiaomi", command=self._on_os_mode_changed).grid(row=0, column=1, padx=(0, 15))
         ttk.Radiobutton(mode_frame, text="ChromeOS", variable=self.os_mode_var,
-                        value="chromeos", command=self._on_os_mode_changed).grid(row=0, column=1, padx=(0, 15))
+                        value="chromeos", command=self._on_os_mode_changed).grid(row=0, column=2, padx=(0, 15))
 
         self.cros_board_label = ttk.Label(mode_frame, text="Board preset:", style='Normal.TLabel')
-        self.cros_board_label.grid(row=0, column=2, sticky=tk.W, padx=(20, 5))
+        self.cros_board_label.grid(row=0, column=3, sticky=tk.W, padx=(20, 5))
         self.cros_board_preset_var = tk.StringVar(value=next(iter(CROS_BOARD_APPID_MAP.keys())))
         self.cros_board_combo = ttk.Combobox(mode_frame, textvariable=self.cros_board_preset_var, width=26)
         self.cros_board_combo['values'] = list(CROS_BOARD_APPID_MAP.keys()) + ['(custom)']
-        self.cros_board_combo.grid(row=0, column=3, sticky=tk.W, padx=5)
+        self.cros_board_combo.grid(row=0, column=4, sticky=tk.W, padx=5)
         self.cros_board_combo.bind('<<ComboboxSelected>>', self._on_cros_board_preset_selected)
 
         self.cros_appid_label = ttk.Label(mode_frame, text="App ID:", style='Normal.TLabel')
-        self.cros_appid_label.grid(row=0, column=4, sticky=tk.W, padx=(20, 5))
+        self.cros_appid_label.grid(row=0, column=5, sticky=tk.W, padx=(20, 5))
         self.cros_appid_var = tk.StringVar(value=next(iter(CROS_BOARD_APPID_MAP.values())))
         self.cros_appid_combo = ttk.Combobox(mode_frame, textvariable=self.cros_appid_var, width=40)
         self.cros_appid_combo['values'] = list(CROS_BOARD_APPID_MAP.values())
-        self.cros_appid_combo.grid(row=0, column=5, sticky=tk.W, padx=5)
+        self.cros_appid_combo.grid(row=0, column=6, sticky=tk.W, padx=5)
         self.cros_appid_combo.configure(state='normal')  # editable, not readonly
 
         # ── Input Fingerprint ──────────────────────────────────────────────
@@ -592,7 +610,12 @@ class OTAProberGUI:
         self.ota_link_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.ota_link_label.bind('<Button-1>', self.on_header_link_click)
 
-        self.notebook = ttk.Notebook(output_frame)
+        # NOTE: tkinterweb.Notebook is used instead of ttk.Notebook here because
+        # Tkhtml (the HTML engine behind HtmlFrame) is documented as incompatible
+        # with ttk.Notebook on 64-bit Windows and crashes when switching tabs.
+        # tkinterweb.Notebook is a drop-in replacement without that issue.
+        # See: https://tkinterweb.readthedocs.io/en/latest/faq.html
+        self.notebook = NOTEBOOK_CLS(output_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
         # Description tab
@@ -682,8 +705,8 @@ class OTAProberGUI:
     def _on_tab_changed(self, event):
         current = self.notebook.index(self.notebook.select())
         tab_text = self.notebook.tab(current, "text")
-        is_cros = self.os_mode_var.get() == "chromeos"
-        if tab_text == "Bruteforce" or is_cros:
+        mode = self.os_mode_var.get()
+        if tab_text == "Bruteforce" or mode in ("chromeos", "xiaomi"):
             self.params_frame.grid_remove()   # ховаємо
         else:
             self.params_frame.grid()          # показуємо
@@ -705,13 +728,18 @@ class OTAProberGUI:
             pass
         self.fingerprint_var.set(f"{board}/0.0.0.0:{track}/{hwid}")
 
-    # ── OS mode switch (Android <-> ChromiumOS) ───────────────────────────
+    # ── OS mode switch (Android <-> Xiaomi <-> ChromiumOS) ─────────────────
     def _on_os_mode_changed(self):
         self._set_os_mode_visibility()
-        if self.os_mode_var.get() == "chromeos":
+        mode = self.os_mode_var.get()
+        if mode == "chromeos":
             self.app_title_var.set("ChromeOS OTA Prober")
             self.fingerprint_var.set("nocturne-signed-mpkeys/0.0.0.0:stable-channel/NOCTURNE NNNN")
             self.fingerprint_format_var.set("Format: board/version:track/hwid  (use version 0.0.0.0 to force the latest update; track: stable-channel/beta-channel/dev-channel/canary-channel)")
+        elif mode == "xiaomi":
+            self.app_title_var.set("Xiaomi OTA Prober")
+            self.fingerprint_var.set("dada_global/OS2.0.222.0.WOCMIXM/16")
+            self.fingerprint_format_var.set("Format: codename/rom_version/android_version  (append _global to codename for Global ROM, e.g. venus_global)")
         else:
             self.app_title_var.set("Android OTA Prober")
             self.fingerprint_var.set("google/shamu/shamu:5.1/LYZ28E/1858530:user/release-keys")
@@ -776,7 +804,9 @@ class OTAProberGUI:
             self.brute_appid_row.pack_forget()
 
     def _set_os_mode_visibility(self):
-        is_cros = self.os_mode_var.get() == "chromeos"
+        mode = self.os_mode_var.get()
+        is_cros = mode == "chromeos"
+        is_xiaomi = mode == "xiaomi"
 
         # Show/hide Board preset + App ID (ChromeOS only) — bug 1
         for w in self._cros_only_widgets:
@@ -785,15 +815,15 @@ class OTAProberGUI:
             else:
                 w.grid_remove()
 
-        # Show/hide the "Scan Key Types" button (Android only) — bug 2
-        if is_cros:
+        # Show/hide the "Scan Key Types" button (Android only — not ChromeOS or Xiaomi)
+        if is_cros or is_xiaomi:
             self.keyscan_button.pack_forget()
         else:
             if not self.keyscan_button.winfo_ismapped():
                 self.keyscan_button.pack(before=self.clear_button, **self._keyscan_button_pack_info)
 
-        # Show/hide the "Scan Locales" row (Android only) — bug 2
-        if is_cros:
+        # Show/hide the "Scan Locales" row (Android only — not ChromeOS or Xiaomi)
+        if is_cros or is_xiaomi:
             self.scan_locales_label.grid_remove()
             self.scan_locales_entry.grid_remove()
         else:
@@ -804,14 +834,16 @@ class OTAProberGUI:
         # inside the HTTP Info tab (Android only) — bug 4
         if hasattr(self, '_cros_hidden_httpinfo_tabs'):
             for frame, tab_text in self._cros_hidden_httpinfo_tabs:
-                tab_ids = self.httpinfo_nb.tabs()
-                frame_id = str(frame)
                 if is_cros:
-                    if frame_id in tab_ids:
-                        self.httpinfo_nb.hide(frame)
+                    try:
+                        self.httpinfo_nb.forget(frame)
+                    except Exception:
+                        pass  # already hidden/removed
                 else:
-                    if frame_id in tab_ids:
+                    try:
                         self.httpinfo_nb.add(frame, text=tab_text)
+                    except Exception:
+                        pass  # already present
 
         # Locale/Timezone params only make sense for Android checkin — bug 3
         # (delegate to the same logic used on tab change so behaviour stays
@@ -925,7 +957,7 @@ class OTAProberGUI:
         self.httpinfo_progress = ttk.Progressbar(wrapper, mode='indeterminate')
         self.httpinfo_progress.pack(fill=tk.X, pady=(0, 6))
 
-        self.httpinfo_nb = ttk.Notebook(wrapper)
+        self.httpinfo_nb = NOTEBOOK_CLS(wrapper)
         self.httpinfo_nb.pack(fill=tk.BOTH, expand=True)
 
         def _make_tree(parent, col1="Field", col2="Value"):
@@ -1131,7 +1163,7 @@ class OTAProberGUI:
         if not last_modified:
             try:
                 req = urllib.request.Request(url, method='HEAD', headers={
-                    'User-Agent': 'OTA-Prober/2.0',
+                    'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
                     'Accept-Encoding': 'identity',
                 })
                 ctx = ssl.create_default_context()
@@ -2023,8 +2055,12 @@ class OTAProberGUI:
         self.query_thread.start()
 
     def perform_query(self, fingerprint):
-        if self.os_mode_var.get() == "chromeos":
+        mode = self.os_mode_var.get()
+        if mode == "chromeos":
             self.perform_query_chromeos(fingerprint)
+            return
+        if mode == "xiaomi":
+            self.perform_query_xiaomi(fingerprint)
             return
         try:
             self.output_text.delete(1.0, tk.END)
@@ -2137,10 +2173,7 @@ class OTAProberGUI:
                 self.update_status("Query failed", 'error')
             else:
                 human_dump = prettify_xml(response_text)
-                hex_dump = '\n'.join(
-                    f"  {i:06x}  " + ' '.join(f'{b:02x}' for b in raw_bytes[i:i+16])
-                    for i in range(0, len(raw_bytes), 16)
-                )
+                hex_dump = format_hex_dump(raw_bytes, header_label="RAW OMAHA XML RESPONSE")
                 self._raw_populate(human_dump, hex_dump)
 
                 ota_link = find_ota_link_chromeos(response_text)
@@ -2183,6 +2216,159 @@ class OTAProberGUI:
                     else:
                         output_str = self.output_text.get(1.0, tk.END)
                     self.save_output(output_str, fingerprint)
+
+                self.update_status("Query completed successfully", 'success')
+
+        except ValueError as e:
+            self.log_output(f"ERROR: {e}", 'error')
+            self.status_icon_var.set("❌")
+            self.update_status("Invalid fingerprint format", 'error')
+        except Exception as e:
+            self.log_output(f"ERROR: {e}", 'error')
+            self.status_icon_var.set("❌")
+            self.update_status(f"Error: {e}", 'error')
+        finally:
+            self.query_button.config(state=tk.NORMAL)
+            self.keyscan_button.config(state=tk.NORMAL)
+            self.clear_button.config(state=tk.NORMAL)
+            self.fingerprint_entry.config(state=tk.NORMAL)
+
+    def perform_query_xiaomi(self, fingerprint):
+        try:
+            self.output_text.delete(1.0, tk.END)
+            self.raw_text.delete(1.0, tk.END)
+            if self.html_frame:
+                self.html_frame.load_html("")
+            elif self.desc_text:
+                self.desc_text.delete(1.0, tk.END)
+            self.url_map.clear()
+            self.current_ota_link = None
+            self.copy_link_button.config(state=tk.DISABLED)
+            self.update_status("Parsing Xiaomi fingerprint...")
+
+            parsed = parse_fingerprint_xiaomi(fingerprint)
+
+            if not XIAOMI_CRYPTO_AVAILABLE:
+                raise RuntimeError(
+                    "The 'pycryptodome' package is required for Xiaomi OTA checks.\n"
+                    "Install it with: pip install pycryptodome"
+                )
+
+            self.update_status("Sending MIUI update-check request...")
+            decrypted, raw_text = perform_checkin_xiaomi(
+                parsed['codename'], parsed['rom_version'], parsed['android_version']
+            )
+
+            if not decrypted:
+                self.log_output("ERROR: Check-in failed - No response from server", 'error')
+                self.status_icon_var.set("❌")
+                self.update_status("Query failed", 'error')
+            else:
+                human_dump = json.dumps(decrypted, indent=2, ensure_ascii=False)
+                decrypted_bytes = json.dumps(decrypted, ensure_ascii=False).encode('utf-8')
+                hex_dump = format_hex_dump(decrypted_bytes, header_label="RAW DECRYPTED MIUI RESPONSE")
+                self._raw_populate(human_dump, hex_dump)
+
+                details = extract_build_details_xiaomi(decrypted)
+
+            # Побудова словника OTA для format_and_log_output
+                ota_dict = None
+                if details.get('found') and details.get('download_url'):
+                    ota_dict = {
+                        'url': details['download_url'],
+                        'title': details.get('version', ''),
+                        'description': '',
+                        'size': details.get('filesize', ''),
+                        'precondition': '',
+                        'postcondition': '',
+                    }
+                # Витягуємо changelog
+                    changelog = details.get('changelog')
+                    if changelog:
+                        if isinstance(changelog, dict):
+                        # Шукаємо будь-яке значення, яке містить список 'txt' або просто список рядків
+                            for key, value in changelog.items():
+                                if isinstance(value, dict) and 'txt' in value:
+                                    txt_list = value.get('txt', [])
+                                    if txt_list:
+                                        ota_dict['description'] = '\n'.join(txt_list)
+                                        break
+                                elif isinstance(value, list):
+                                    ota_dict['description'] = '\n'.join(str(item) for item in value)
+                                    break
+                        elif isinstance(changelog, list):
+                            ota_dict['description'] = '\n'.join(str(item) for item in changelog)
+                        elif isinstance(changelog, str):
+                            ota_dict['description'] = changelog
+
+                if not details.get('found'):
+                    build_info = {
+                        'device_codename': parsed['codename'],
+                        'android_version': parsed['android_version'],
+                        'build_tag': parsed['rom_version'],
+                        'build_number': '',
+                        'build_flavor': '',
+                        'security_keys': '',
+                        'android_id': '',
+                        'device_country': '',
+                    }
+                    self.log_output(
+                        "No ROM information returned for this device/version combination.\n"
+                        "Double-check the codename, ROM version and Android version.",
+                        'error'
+                    )
+                else:
+                    bigver = details.get('bigversion_label')
+                    build_info = {
+                        'device_codename': details.get('device', parsed['codename']),
+                        'android_version': f"Android {details.get('codebase', parsed['android_version'])}"
+                                           + (f" ({bigver})" if bigver else ""),
+                        'build_tag': details.get('version', parsed['rom_version']),
+                        'build_number': details.get('branch', ''),
+                        'build_flavor': 'beta' if details.get('is_beta') and details.get('is_beta') != '0' else 'stable',
+                        'security_keys': details.get('md5', ''),
+                        'android_id': '',
+                        'device_country': '',
+                    }
+
+                    if self.json_var.get():
+                        json_data = {
+                            'fingerprint': fingerprint,
+                            'build_info': build_info,
+                            'ota_link': ota_dict,  # тепер словник
+                            'filename': details.get('filename'),
+                            'filesize': details.get('filesize'),
+                            'md5': details.get('md5'),
+                        }
+                        output_str = json.dumps(json_data, indent=2)
+                        self.log_output(output_str)
+                        if self.html_frame:
+                            self.html_frame.load_html(f"<pre>{output_str}</pre>")
+                        elif self.desc_text:
+                            self.desc_text.insert(tk.END, output_str)
+                    else:
+                    # Передаємо ota_dict замість рядка
+                        self.format_and_log_output(fingerprint, {}, build_info, ota_dict)
+                        if details.get('filename'):
+                            self.log_output(f"\nFilename: {details.get('filename')}")
+                        if details.get('filesize'):
+                            self.log_output(f"Filesize: {details.get('filesize')}")
+                        if details.get('md5'):
+                            self.log_output(f"MD5: {details.get('md5')}")
+
+                    if self.save_var.get():
+                        if self.json_var.get():
+                            output_str = json.dumps({
+                                'fingerprint': fingerprint,
+                                'build_info': build_info,
+                                'ota_link': ota_dict,
+                                'filename': details.get('filename'),
+                                'filesize': details.get('filesize'),
+                                'md5': details.get('md5'),
+                            }, indent=2)
+                        else:
+                            output_str = self.output_text.get(1.0, tk.END)
+                        self.save_output(output_str, fingerprint)
 
                 self.update_status("Query completed successfully", 'success')
 
@@ -2567,6 +2753,153 @@ def parse_fingerprint_chromeos(fingerprint):
     }
 
 
+def parse_fingerprint_xiaomi(fingerprint):
+    """
+    Parses our own convention: codename/rom_version/android_version
+    e.g. venus/OS1.0.2.0.UNCMIXM/13
+    """
+    parts = fingerprint.split('/')
+    if len(parts) != 3:
+        raise ValueError(
+            "Invalid Xiaomi fingerprint format. Expected 3 parts.\n"
+            "Format: codename/rom_version/android_version\n"
+            f"Got {len(parts)} parts: {parts}"
+        )
+    codename, rom_version, android_version = parts
+    return {
+        'fingerprint': fingerprint,
+        'codename': codename,
+        'rom_version': rom_version,
+        'android_version': android_version,
+    }
+
+
+# Public, fixed key used by the unauthenticated (v1) MIUI OTA check-in API.
+# Sourced from open-source reimplementations (e.g. YuKongA/Xiaomi-Update-Info);
+# it is not a per-account or per-device secret, just an obfuscation key baked
+# into the official Updater app.
+XIAOMI_MIUI_UPDATE_URL = "https://update.miui.com/updates/miotaV3.php"
+XIAOMI_AES_IV = b"0102030405060708"
+XIAOMI_AES_DEFAULT_KEY = b"miuiotavalided11"
+
+
+def _xiaomi_aes_encrypt(plaintext, key=XIAOMI_AES_DEFAULT_KEY):
+    cipher = AES.new(key, AES.MODE_CBC, XIAOMI_AES_IV)
+    padded = pad(plaintext.encode('utf-8'), cipher.block_size)
+    encrypted = cipher.encrypt(padded)
+    return base64.urlsafe_b64encode(encrypted).decode('utf-8')
+
+
+def _xiaomi_aes_decrypt(encrypted_text, key=XIAOMI_AES_DEFAULT_KEY):
+    cipher = AES.new(key, AES.MODE_CBC, XIAOMI_AES_IV)
+    encrypted_bytes = base64.urlsafe_b64decode(encrypted_text)
+    decrypted = cipher.decrypt(encrypted_bytes)
+    unpadded = unpad(decrypted, cipher.block_size)
+    return json.loads(unpadded.decode('utf-8'))
+
+
+def build_checkin_request_xiaomi(codename, rom_version, android_version):
+    is_global = '_global' in codename
+    data = {
+        "id": None,
+        "c": android_version,
+        "d": codename,
+        "f": "1",
+        "ov": rom_version,
+        "l": 'en_US' if is_global else 'zh_CN',
+        "r": 'GL' if is_global else 'CN',
+        "v": f"miui-{rom_version.replace('OS1', 'V816')}",
+    }
+    return json.dumps(data, separators=(',', ':'))
+
+
+def perform_checkin_xiaomi(codename, rom_version, android_version, timeout=15):
+    """
+    Queries the unauthenticated (v1, no login) MIUI OTA update-check endpoint.
+    Returns (decrypted_response_dict, raw_response_text).
+    """
+    if not XIAOMI_CRYPTO_AVAILABLE:
+        raise RuntimeError(
+            "The 'pycryptodome' package is required for Xiaomi OTA checks.\n"
+            "Install it with: pip install pycryptodome"
+        )
+
+    json_data = build_checkin_request_xiaomi(codename, rom_version, android_version)
+    encrypted_data = _xiaomi_aes_encrypt(json_data)
+
+    post_data = urlencode({
+        "q": encrypted_data,
+        "t": "",
+        "s": "1",  # interface v1 — no account login
+    }).encode('utf-8')
+
+    req = urllib.request.Request(
+        XIAOMI_MIUI_UPDATE_URL,
+        data=post_data,
+        method='POST',
+        headers={
+            'User-Agent': 'MiuiUpdaterClient',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+    )
+    ctx = ssl.create_default_context()
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+        raw_text = resp.read().decode('utf-8', errors='replace')
+
+    if not raw_text:
+        raise RuntimeError("Empty response from MIUI update server")
+
+    decrypted = _xiaomi_aes_decrypt(raw_text)
+    return decrypted, raw_text
+
+
+def extract_build_details_xiaomi(decrypted_response):
+    """
+    Normalizes a decrypted MIUI OTA response into the same kind of summary
+    dict the Android/ChromeOS paths produce, including a direct download URL.
+    """
+    current = decrypted_response.get('CurrentRom', {}) or {}
+    latest = decrypted_response.get('LatestRom', {}) or {}
+
+    if not current.get('version'):
+        return {'found': False, 'raw': decrypted_response}
+
+    filename = current.get('filename')
+    download_url = None
+    if filename:
+        # If current and latest share the same md5, the file lives on the
+        # "ultimate" (recovery) server; otherwise it's on the "big" server.
+        if current.get('md5') and current.get('md5') == latest.get('md5'):
+            download_url = f"https://ultimateota.d.miui.com/{current.get('version')}/{latest.get('filename', filename)}"
+        else:
+            download_url = f"https://bigota.d.miui.com/{current.get('version')}/{filename}"
+
+    bigversion = current.get('bigversion', '')
+    if bigversion == '816':
+        bigversion_label = 'HyperOS 1.0'
+    elif bigversion and bigversion != '0':
+        bigversion_label = f"MIUI {bigversion}"
+    else:
+        bigversion_label = None
+
+    return {
+        'found': True,
+        'device': current.get('device', 'Unknown'),
+        'version': current.get('version', 'Unknown'),
+        'bigversion_label': bigversion_label,
+        'osbigversion': current.get('osbigversion'),
+        'codebase': current.get('codebase', 'Unknown'),
+        'branch': current.get('branch', 'Unknown'),
+        'is_beta': current.get('isBeta'),
+        'filename': filename,
+        'filesize': current.get('filesize'),
+        'md5': current.get('md5'),
+        'download_url': download_url,
+        'changelog': current.get('changelog'),
+        'raw': decrypted_response,
+    }
+
+
 def build_checkin_request_chromeos(fingerprint, app_id, arch="x86_64", hardware_class=None):
     parsed = parse_fingerprint_chromeos(fingerprint)
     hwid = hardware_class if hardware_class else parsed['hwid']
@@ -2914,6 +3247,23 @@ def parse_protobuf_full(data, indent=0, field_names=None):
     return lines
 
 
+def format_hex_dump(raw_bytes, header_label="RAW RESPONSE"):
+    """
+    Produces the same style of hex dump as format_raw_response(): a header
+    line, a "--- HEX DUMP ---" marker, and rows of offset + hex bytes +
+    ASCII column, matching the Android tab's Hex View formatting.
+    """
+    n = len(raw_bytes)
+    header = f"=== {header_label}  ({n} bytes) ===\n"
+    lines = [header, "--- HEX DUMP ---"]
+    for i in range(0, n, 16):
+        chunk = raw_bytes[i:i+16]
+        hex_part = ' '.join(f'{b:02x}' for b in chunk)
+        asc_part = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
+        lines.append(f"  {i:06x}  {hex_part:<47}  {asc_part}")
+    return '\n'.join(lines)
+
+
 def format_raw_response(raw_bytes):
     n = len(raw_bytes)
     header = f"=== RAW PROTOBUF RESPONSE  ({n} bytes) ===\n"
@@ -2926,13 +3276,7 @@ def format_raw_response(raw_bytes):
         human_lines.append(f"[parser error: {e}]")
     human_str = '\n'.join(human_lines)
 
-    hex_lines = [header, "--- HEX DUMP ---"]
-    for i in range(0, n, 16):
-        chunk = raw_bytes[i:i+16]
-        hex_part = ' '.join(f'{b:02x}' for b in chunk)
-        asc_part = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
-        hex_lines.append(f"  {i:06x}  {hex_part:<47}  {asc_part}")
-    hex_str = '\n'.join(hex_lines)
+    hex_str = format_hex_dump(raw_bytes, header_label="RAW PROTOBUF RESPONSE")
 
     return human_str, hex_str
 
@@ -3373,7 +3717,7 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
 
     def _get_range(range_header):
         req = urllib.request.Request(url, headers={
-            'User-Agent': 'OTA-Prober/2.0',
+            'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
             'Accept-Encoding': 'identity',
             'Range': range_header,
         })
@@ -3383,7 +3727,7 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
 
     def _head_size():
         head_req = urllib.request.Request(url, method='HEAD', headers={
-            'User-Agent': 'OTA-Prober/2.0',
+            'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
             'Accept-Encoding': 'identity',
         })
         ctx = ssl.create_default_context()
@@ -3647,7 +3991,7 @@ def check_alternative_ota_names(base_prefix: str, candidates: list, status_cb=No
         working = False
         try:
             req = urllib.request.Request(candidate_url, method='HEAD', headers={
-                'User-Agent': 'OTA-Prober/2.0',
+                'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
                 'Accept-Encoding': 'identity',
             })
             ctx = ssl.create_default_context()
@@ -3813,7 +4157,7 @@ def probe_ota_url(url: str, status_cb=None, timeout: int = 15) -> dict:
                 tls_done = True
 
             conn.request('HEAD', path, headers={
-                'User-Agent': 'OTA-Prober/2.0',
+                'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
                 'Accept-Encoding': 'identity',
                 'Connection': 'close',
             })
