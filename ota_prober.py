@@ -6,7 +6,6 @@
 import sys
 import os
 import gzip
-import concurrent.futures
 import urllib.request
 import urllib.error
 import json
@@ -19,7 +18,6 @@ import webbrowser
 import queue
 import time
 import ssl
-import socket
 import http.client
 from urllib.parse import urlparse
 import struct
@@ -3738,34 +3736,6 @@ def probe_alternative_filenames(url: str, last_modified: str,
     _s(f"Checking {len(candidates)} alternative filename(s)…")
     out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
     return out
-
-
-# ── HTTP Info prober ──────────────────────────────────────────────────────
-
-def probe_ota_url(url: str, status_cb=None, timeout: int = 15) -> dict:
-    def _s(msg):
-        if status_cb:
-            status_cb(msg)
-
-    results = []
-    for i, name in enumerate(candidates):
-        candidate_url = base_prefix + name
-        _s(f"Checking alternative {i+1}/{len(candidates)}…")
-        working = False
-        try:
-            req = urllib.request.Request(candidate_url, method='HEAD', headers={
-                'User-Agent': 'OTA-Prober/2.0',
-                'Accept-Encoding': 'identity',
-            })
-            ctx = ssl.create_default_context()
-            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-                working = resp.getcode() in (200, 206)
-        except urllib.error.HTTPError as e:
-            working = e.code in (200, 206)
-        except Exception:
-            working = False
-        results.append((name, candidate_url, working))
-    return results
 
 
 # ── HTTP Info prober ──────────────────────────────────────────────────────
