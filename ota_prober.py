@@ -428,6 +428,109 @@ def fetch_zip_tree(url, status_cb=None, timeout=30):
     return entries
 
 
+def extract_zip_entry(url, entry, status_cb=None, timeout=30):
+    """
+    Витягує вміст одного файлу з ZIP-архіву за URL, використовуючи
+    HTTP Range-запити — без завантаження всього архіву.
+
+    entry: словник з fetch_zip_tree(), обов'язково містить
+           'local_header_offset' і 'compressed_size'.
+    Повертає bytes з розпакованим вмістом файлу.
+    """
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    local_offset = entry['local_header_offset']
+    comp_size = entry['compressed_size']
+    compression_method = entry.get('compression_method', 0)
+
+    # Локальний заголовок фіксованого розміру 30 байт + name_len + extra_len
+    # (обидва невідомі заздалегідь, тож спершу тягнемо запас 512 байт заголовка)
+    header_guess = 512
+    range_end = local_offset + header_guess + comp_size
+    range_hdr = f'bytes={local_offset}-{range_end}'
+
+    _s(f"Downloading '{entry['name']}' ({comp_size:,} bytes compressed)...")
+
+    ctx = ssl.create_default_context()
+    req = urllib.request.Request(url, headers={
+        'User-Agent': 'AndroidDownloadManager/14',
+        'Accept-Encoding': 'identity',
+        'Range': range_hdr,
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            blob = resp.read()
+    except Exception as e:
+        raise RuntimeError(f"Range fetch failed: {e}")
+
+    if len(blob) < 30 or blob[:4] != b'PK\x03\x04':
+        raise RuntimeError("Local file header not found at expected offset")
+
+    name_len = struct.unpack('<H', blob[26:28])[0]
+    extra_len = struct.unpack('<H', blob[28:30])[0]
+    data_start = 30 + name_len + extra_len
+
+    # Якщо запасу 512 байт не вистачило на заголовок — перезапитати з коректним зсувом
+    if data_start > header_guess:
+        range_hdr = f'bytes={local_offset}-{local_offset + data_start + comp_size}'
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'AndroidDownloadManager/14',
+            'Accept-Encoding': 'identity',
+            'Range': range_hdr,
+        })
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            blob = resp.read()
+
+    raw = blob[data_start:data_start + comp_size]
+    if len(raw) < comp_size:
+        raise RuntimeError("Incomplete data — fewer bytes received than compressed_size")
+
+    if compression_method == 0:
+        # Stored (без стиснення)
+        return raw
+    elif compression_method == 8:
+        # Deflate
+        _s("Decompressing...")
+        return zlib.decompress(raw, -15)
+    else:
+        raise RuntimeError(f"Unsupported compression method: {compression_method}")
+
+
+def extract_zip_entry_local(path, entry, status_cb=None):
+    """Local-file counterpart of extract_zip_entry()."""
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    local_offset = entry['local_header_offset']
+    comp_size = entry['compressed_size']
+    compression_method = entry.get('compression_method', 0)
+
+    _s(f"Reading '{entry['name']}' from local file...")
+    with open(path, 'rb') as f:
+        f.seek(local_offset)
+        header = f.read(30)
+        if len(header) < 30 or header[:4] != b'PK\x03\x04':
+            raise RuntimeError("Local file header not found at expected offset")
+        name_len = struct.unpack('<H', header[26:28])[0]
+        extra_len = struct.unpack('<H', header[28:30])[0]
+        f.seek(local_offset + 30 + name_len + extra_len)
+        raw = f.read(comp_size)
+
+    if len(raw) < comp_size:
+        raise RuntimeError("Incomplete data read from local file")
+
+    if compression_method == 0:
+        return raw
+    elif compression_method == 8:
+        _s("Decompressing...")
+        return zlib.decompress(raw, -15)
+    else:
+        raise RuntimeError(f"Unsupported compression method: {compression_method}")
+
+
 def fetch_zip_tree_local(path, status_cb=None):
     """
     Local-file counterpart of fetch_zip_tree(): parses the ZIP central
@@ -1480,7 +1583,9 @@ class OTAProberGUI:
         ttk.Button(zip_toolbar, text="Scan ZIP Tree", command=self._httpinfo_zip_tree_scan).pack(side=tk.LEFT, padx=(0, 8))
         ttk.Button(zip_toolbar, text="Expand All", command=self._zip_tree_expand_all).pack(side=tk.LEFT, padx=(0, 4))
         ttk.Button(zip_toolbar, text="Collapse All", command=self._zip_tree_collapse_all).pack(side=tk.LEFT, padx=(0, 4))
-        ttk.Button(zip_toolbar, text="Copy Path", command=self._zip_tree_copy_path).pack(side=tk.LEFT, padx=(0, 12))
+        ttk.Button(zip_toolbar, text="Copy Path", command=self._zip_tree_copy_path).pack(side=tk.LEFT, padx=(0, 4))
+        self.zip_tree_extract_btn = ttk.Button(zip_toolbar, text="Extract File...", command=self._zip_tree_extract_selected)
+        self.zip_tree_extract_btn.pack(side=tk.LEFT, padx=(0, 12))
 
         self.zip_tree_status_var = tk.StringVar(value="Press 'Scan ZIP Tree' to view contents.")
         status_lbl = ttk.Label(zip_toolbar, textvariable=self.zip_tree_status_var, foreground='#0066cc')
@@ -1891,6 +1996,9 @@ class OTAProberGUI:
         for child in self.zip_tree.get_children():
             self.zip_tree.delete(child)
 
+        # Мапінг tree node id -> entry dict (для Extract File)
+        self.zip_tree_node_entries = {}
+
         if not entries:
             self.zip_tree_status_var.set("No entries found in ZIP (maybe empty or unsupported).")
             return
@@ -1969,8 +2077,9 @@ class OTAProberGUI:
                     ratio = f"{comp/uncomp*100:.1f}%" if uncomp > 0 else "0%"
                     size_str = f"{uncomp/1024/1024:.2f} MB" if uncomp > 1024*1024 else f"{uncomp/1024:.1f} KB"
                     comp_str = f"{comp/1024/1024:.2f} MB" if comp > 1024*1024 else f"{comp/1024:.1f} KB"
-                    self.zip_tree.insert(parent_node, tk.END, text=key,
+                    file_node = self.zip_tree.insert(parent_node, tk.END, text=key,
                                          values=(size_str, comp_str, ratio, entry.get('date', ''), f"{entry.get('crc32', 0):08X}"))
+                    self.zip_tree_node_entries[file_node] = entry
 
         # Додаємо кореневі елементи
         for key, value in sorted(tree_dict.items()):
@@ -1986,8 +2095,9 @@ class OTAProberGUI:
                 ratio = f"{comp/uncomp*100:.1f}%" if uncomp > 0 else "0%"
                 size_str = f"{uncomp/1024/1024:.2f} MB" if uncomp > 1024*1024 else f"{uncomp/1024:.1f} KB"
                 comp_str = f"{comp/1024/1024:.2f} MB" if comp > 1024*1024 else f"{comp/1024:.1f} KB"
-                self.zip_tree.insert("", tk.END, text=key,
+                root_file_node = self.zip_tree.insert("", tk.END, text=key,
                                      values=(size_str, comp_str, ratio, entry.get('date', ''), f"{entry.get('crc32', 0):08X}"))
+                self.zip_tree_node_entries[root_file_node] = entry
 
         # Оновлюємо статус
         total = total_files + total_dirs
@@ -2035,6 +2145,63 @@ class OTAProberGUI:
         self.root.clipboard_clear()
         self.root.clipboard_append(full_path)
         self.zip_tree_status_var.set(f"Copied: {full_path}")
+
+    def _zip_tree_extract_selected(self):
+        """Витягує вибраний файл з ZIP (за URL/локальним файлом) без завантаження всього архіву."""
+        sel = self.zip_tree.selection()
+        if not sel:
+            messagebox.showinfo("Extract File", "Select a file in the ZIP tree first.")
+            return
+        node = sel[0]
+        entry = getattr(self, 'zip_tree_node_entries', {}).get(node)
+        if entry is None:
+            messagebox.showinfo("Extract File", "Please select a file (not a folder).")
+            return
+
+        url = self.httpinfo_url_var.get().strip()
+        is_local = bool(self.httpinfo_local_path) and self.httpinfo_local_path == url
+        source = self.httpinfo_local_path if is_local else url
+        if not source:
+            messagebox.showerror("Extract File", "No source URL/file set.")
+            return
+
+        default_name = entry['name'].split('/')[-1] or 'extracted_file'
+        save_path = filedialog.asksaveasfilename(
+            title="Save extracted file as",
+            initialfile=default_name,
+        )
+        if not save_path:
+            return
+
+        self.zip_tree_extract_btn.config(state=tk.DISABLED)
+        self.zip_tree_status_var.set(f"Extracting '{entry['name']}'...")
+        threading.Thread(
+            target=self._zip_tree_extract_worker,
+            args=(source, entry, save_path, is_local),
+            daemon=True,
+        ).start()
+
+    def _zip_tree_extract_worker(self, source, entry, save_path, is_local):
+        try:
+            if is_local:
+                data = extract_zip_entry_local(
+                    source, entry,
+                    status_cb=lambda m: self.root.after(0, self.zip_tree_status_var.set, m)
+                )
+            else:
+                data = extract_zip_entry(
+                    source, entry,
+                    status_cb=lambda m: self.root.after(0, self.zip_tree_status_var.set, m)
+                )
+            with open(save_path, 'wb') as f:
+                f.write(data)
+            self.root.after(0, self.zip_tree_status_var.set,
+                             f"Extracted '{entry['name']}' -> {save_path} ({len(data):,} bytes)")
+        except Exception as e:
+            self.root.after(0, self.zip_tree_status_var.set, f"Extract error: {e}")
+            self.root.after(0, lambda: messagebox.showerror("Extract File", str(e)))
+        finally:
+            self.root.after(0, lambda: self.zip_tree_extract_btn.config(state=tk.NORMAL))
 
     # ── Bruteforce tab ─────────────────────────────────────────────────────
     def _build_bruteforce_tab(self):
