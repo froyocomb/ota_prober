@@ -43,6 +43,177 @@ NOTEBOOK_CLS = TkwNotebook if TkwNotebook else ttk.Notebook
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+
+# ── OTA History & Collection storage ─────────────────────────────────────
+def _get_documents_dir():
+    home = os.path.expanduser("~")
+    candidates = []
+    if sys.platform.startswith("win"):
+        try:
+            import winreg
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+            ) as key:
+                val, _ = winreg.QueryValueEx(key, "Personal")
+                val = os.path.expandvars(val)
+                if val:
+                    candidates.append(val)
+        except Exception:
+            pass
+        candidates.append(os.path.join(home, "Documents"))
+    elif sys.platform == "darwin":
+        candidates.append(os.path.join(home, "Documents"))
+    else:
+        try:
+            xdg_conf = os.path.join(home, ".config", "user-dirs.dirs")
+            if os.path.isfile(xdg_conf):
+                with open(xdg_conf, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("XDG_DOCUMENTS_DIR"):
+                            _, _, rhs = line.partition("=")
+                            rhs = rhs.strip().strip('"')
+                            rhs = rhs.replace("$HOME", home)
+                            if rhs:
+                                candidates.append(rhs)
+        except Exception:
+            pass
+        candidates.append(os.path.join(home, "Documents"))
+
+    for c in candidates:
+        if c:
+            return c
+    return home
+
+
+def _get_storage_dir():
+    docs = _get_documents_dir()
+    storage_dir = os.path.join(docs, "OTAProber")
+    try:
+        os.makedirs(storage_dir, exist_ok=True)
+    except Exception:
+        storage_dir = os.path.join(os.path.expanduser("~"), ".ota_prober")
+        os.makedirs(storage_dir, exist_ok=True)
+    return storage_dir
+
+
+OTA_HISTORY_FILE = os.path.join(_get_storage_dir(), "ota_history.json")
+OTA_COLLECTION_FILE = os.path.join(_get_storage_dir(), "ota_collection.json")
+
+_ota_store_lock = threading.Lock()
+
+OTA_HISTORY_MAX_ENTRIES = 500
+
+
+def _load_json_file(path, default):
+    try:
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if data is not None:
+                    return data
+    except Exception:
+        pass
+    return default
+
+
+def _save_json_file(path, data):
+    try:
+        tmp_path = path + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, path)
+    except Exception:
+        pass
+
+
+def _load_history():
+    return _load_json_file(OTA_HISTORY_FILE, [])
+
+
+def _save_history(entries):
+    _save_json_file(OTA_HISTORY_FILE, entries)
+
+
+def _load_collection():
+    return _load_json_file(OTA_COLLECTION_FILE, {})
+
+
+def _save_collection(coll):
+    _save_json_file(OTA_COLLECTION_FILE, coll)
+
+
+def _norm_str(s):
+    return (s or "").strip()
+
+
+def add_ota_record(os_kind, url, title="", description="", size="",
+                    locale="", fingerprint="", alt_filenames=None):
+    url = _norm_str(url)
+    if not url:
+        return
+
+    title = _norm_str(title)
+    description = _norm_str(description)
+    size = _norm_str(size)
+    locale = _norm_str(locale)
+    fingerprint = _norm_str(fingerprint)
+    alt_filenames = sorted(set(a for a in (alt_filenames or []) if a))
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    with _ota_store_lock:
+        history = _load_history()
+        history.append({
+            "timestamp": now_str,
+            "os": os_kind,
+            "url": url,
+            "title": title,
+            "description": description,
+            "size": size,
+            "locale": locale,
+            "fingerprint": fingerprint,
+            "alt_filenames": alt_filenames,
+        })
+        if len(history) > OTA_HISTORY_MAX_ENTRIES:
+            history = history[-OTA_HISTORY_MAX_ENTRIES:]
+        _save_history(history)
+
+        coll = _load_collection()
+        bucket = coll.setdefault(os_kind, {})
+        entry = bucket.get(url)
+        if entry is None:
+            entry = {
+                "first_seen": now_str,
+                "last_seen": now_str,
+                "variants": [],
+                "alt_filenames": [],
+                "locales": [],
+                "fingerprints": [],
+            }
+            bucket[url] = entry
+
+        entry["last_seen"] = now_str
+
+        variant = {"title": title, "description": description, "size": size}
+        if variant not in entry["variants"]:
+            if title or description or size:
+                entry["variants"].append(variant)
+
+        for af in alt_filenames:
+            if af not in entry["alt_filenames"]:
+                entry["alt_filenames"].append(af)
+
+        if locale and locale not in entry["locales"]:
+            entry["locales"].append(locale)
+
+        if fingerprint and fingerprint not in entry["fingerprints"]:
+            entry["fingerprints"].append(fingerprint)
+            if len(entry["fingerprints"]) > 20:
+                entry["fingerprints"] = entry["fingerprints"][-20:]
+
+        _save_collection(coll)
+
 # ── Locale → Timezone mapping ────────────────────────────────────────────
 LOCALE_TZ_MAP = {
     'af-ZA': 'Africa/Johannesburg',
@@ -811,6 +982,16 @@ class OTAProberGUI:
                         value="xiaomi", command=self._on_os_mode_changed).grid(row=0, column=1, padx=(0, 15))
         ttk.Radiobutton(mode_frame, text="ChromeOS", variable=self.os_mode_var,
                         value="chromeos", command=self._on_os_mode_changed).grid(row=0, column=2, padx=(0, 15))
+
+        # ── History / Collection buttons — top-right corner ─────────────
+        history_frame = ttk.Frame(title_row)
+        history_frame.pack(side=tk.RIGHT)
+
+        self.collection_button = ttk.Button(history_frame, text="📦 Collection", command=self.open_collection_window)
+        self.collection_button.pack(side=tk.RIGHT, padx=(6, 0))
+
+        self.history_button = ttk.Button(history_frame, text="🕘 History", command=self.open_history_window)
+        self.history_button.pack(side=tk.RIGHT, padx=(6, 0))
 
         self.cros_board_label = ttk.Label(mode_frame, text="Board preset:", style='Normal.TLabel')
         self.cros_board_label.grid(row=0, column=3, sticky=tk.W, padx=(20, 5))
@@ -1892,6 +2073,22 @@ class OTAProberGUI:
                 'reason': direct.get('reason') or alt.get('reason'),
                 'results': merged_results,
             }
+            try:
+                working_names = [name for name, curl, ok in merged_results if ok]
+                if working_names:
+                    add_ota_record(
+                        os_kind=self.os_mode_var.get(),
+                        url=self.current_ota_link or url,
+                        title='',
+                        description='',
+                        size='',
+                        locale=self.locale_var.get().strip() if hasattr(self, 'locale_var') else '',
+                        fingerprint='',
+                        alt_filenames=working_names,
+                    )
+            except Exception:
+                pass
+
             self.root.after(0, self._httpinfo_display_altnames, merged)
         except Exception as exc:
             self.root.after(0, self._httpinfo_display_altnames,
@@ -3015,6 +3212,19 @@ class OTAProberGUI:
         size = ota.get('size', '')
         meta = (title, desc, size)
 
+        try:
+            add_ota_record(
+                os_kind=self.os_mode_var.get(),
+                url=url,
+                title=title,
+                description=desc,
+                size=size,
+                locale=loc,
+                fingerprint=fp,
+            )
+        except Exception:
+            pass
+
         with self._brute_progress_lock:
             self._brute_found_count += 1
 
@@ -3214,6 +3424,349 @@ class OTAProberGUI:
         self.root.clipboard_append(self.current_ota_link)
         self.status_var.set("Link copied to clipboard")
         self._flash_button(self.copy_link_button, "✓ Copied")
+
+    # ── History / Collection windows ─────────────────────────────────────
+    def _os_label(self, os_kind):
+        return {"android": "Android", "chromeos": "ChromeOS", "xiaomi": "Xiaomi"}.get(os_kind, os_kind)
+
+    APP_BG = '#f0f0f0'
+
+    def _make_scrollable_frame(self, parent):
+        """Creates a scrollable Frame inside parent, returns (canvas, inner_frame)."""
+        canvas = tk.Canvas(parent, bg=self.APP_BG, highlightthickness=0)
+        vscroll = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=canvas.yview)
+        inner = ttk.Frame(canvas)
+
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.configure(yscrollcommand=vscroll.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vscroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        def _on_mousewheel(event):
+            delta = -1 * (event.delta // 120) if event.delta else 0
+            canvas.yview_scroll(delta, "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        return canvas, inner
+
+    def _record_matches_query(self, rec, query):
+        if not query:
+            return True
+        q = query.lower()
+        haystack = " ".join([
+            rec.get("title", ""),
+            rec.get("description", ""),
+            rec.get("url", ""),
+            rec.get("fingerprint", ""),
+            rec.get("locale", ""),
+            " ".join(rec.get("alt_filenames", []) or []),
+        ]).lower()
+        return q in haystack
+
+    def _collection_entry_matches_query(self, url, entry, query):
+        if not query:
+            return True
+        q = query.lower()
+        variant_text = " ".join(
+            " ".join([v.get("title", ""), v.get("description", ""), v.get("size", "")])
+            for v in entry.get("variants", [])
+        )
+        haystack = " ".join([
+            url,
+            variant_text,
+            " ".join(entry.get("alt_filenames", []) or []),
+            " ".join(entry.get("locales", []) or []),
+            " ".join(entry.get("fingerprints", []) or []),
+        ]).lower()
+        return q in haystack
+
+    def open_history_window(self):
+        win = tk.Toplevel(self.root)
+        win.title("OTA History")
+        win.geometry("1000x680")
+        win.configure(bg=self.APP_BG)
+
+        top = ttk.Frame(win, padding=8)
+        top.pack(fill=tk.X)
+        ttk.Label(top, text="OTA History", style='Header.TLabel').pack(side=tk.LEFT)
+        ttk.Button(top, text="🔄 Refresh", command=lambda: self._populate_history(nb, search_var.get())).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(top, text="🗑 Clear History", command=lambda: self._clear_history(nb, search_var)).pack(side=tk.RIGHT, padx=4)
+
+        search_row = ttk.Frame(win, padding=(8, 0, 8, 8))
+        search_row.pack(fill=tk.X)
+        ttk.Label(search_row, text="🔎 Search device / title / URL / fingerprint:", style='Normal.TLabel').pack(side=tk.LEFT, padx=(0, 6))
+        search_var = tk.StringVar(value="")
+        search_entry = ttk.Entry(search_row, textvariable=search_var, width=50)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        search_entry.bind('<KeyRelease>', lambda e: self._populate_history(nb, search_var.get()))
+        ttk.Button(search_row, text="✕", width=3, command=lambda: (search_var.set(""), self._populate_history(nb, ""))).pack(side=tk.LEFT, padx=(6, 0))
+
+        nb = NOTEBOOK_CLS(win)
+        nb.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
+
+        self._populate_history(nb, "")
+
+    def _clear_history(self, nb, search_var):
+        if not messagebox.askyesno("Clear History", "Are you sure you want to clear the entire OTA history?"):
+            return
+        with _ota_store_lock:
+            _save_history([])
+        self._populate_history(nb, search_var.get() if search_var else "")
+
+    def _populate_history(self, nb, query=""):
+        for tab_id in nb.tabs():
+            nb.forget(tab_id)
+
+        history = list(reversed(_load_history()))
+        query = (query or "").strip()
+
+        by_os = {"android": [], "chromeos": [], "xiaomi": []}
+        for rec in history:
+            if not self._record_matches_query(rec, query):
+                continue
+            by_os.setdefault(rec.get("os", "android"), []).append(rec)
+
+        for os_kind in ("android", "chromeos", "xiaomi"):
+            recs = by_os.get(os_kind, [])
+            frame = ttk.Frame(nb)
+            nb.add(frame, text=f"{self._os_label(os_kind)} ({len(recs)})")
+            canvas, inner = self._make_scrollable_frame(frame)
+
+            if not recs:
+                ttk.Label(inner, text="  No entries found.", style='Normal.TLabel').pack(anchor=tk.W, padx=10, pady=10)
+                continue
+
+            for rec in recs:
+                self._render_history_card(inner, rec)
+
+    def _render_history_card(self, parent, rec):
+        card = ttk.Frame(parent, relief=tk.GROOVE, borderwidth=1, padding=8)
+        card.pack(fill=tk.X, padx=8, pady=4)
+
+        head = ttk.Frame(card)
+        head.pack(fill=tk.X)
+        ttk.Label(head, text=f"🕘 {rec.get('timestamp', '')}", font=('Arial', 9, 'bold'),
+                  foreground='#666666').pack(side=tk.LEFT)
+        if rec.get("locale"):
+            ttk.Label(head, text=f"   🌐 {rec['locale']}", font=('Arial', 9),
+                      foreground='#666666').pack(side=tk.LEFT)
+
+        title = rec.get("title") or "(no title)"
+        title_lbl = ttk.Label(card, text=title, font=('Arial', 10, 'bold'), wraplength=880, justify=tk.LEFT)
+        title_lbl.pack(anchor=tk.W, pady=(4, 0))
+
+        url = rec.get("url", "")
+        url_lbl = tk.Label(card, text=url, font=('Courier', 9), fg='#0066cc', bg=self.APP_BG,
+                            wraplength=880, justify=tk.LEFT, cursor='hand2')
+        url_lbl.pack(anchor=tk.W, pady=(2, 0))
+        url_lbl.bind('<Button-1>', lambda e, u=url: webbrowser.open(u))
+
+        desc = rec.get("description", "")
+        if desc:
+            desc_short = desc if len(desc) <= 220 else desc[:220] + "…"
+            ttk.Label(card, text=desc_short, font=('Arial', 9), foreground='#333333',
+                      wraplength=880, justify=tk.LEFT).pack(anchor=tk.W, pady=(2, 0))
+
+        if rec.get("fingerprint"):
+            fp = rec['fingerprint']
+            fp_lbl = tk.Label(card, text=f"🔑 {fp}", font=('Courier', 8), fg='#666666', bg=self.APP_BG,
+                               wraplength=880, justify=tk.LEFT)
+            fp_lbl.pack(anchor=tk.W, pady=(2, 0))
+
+        meta_bits = []
+        if rec.get("size"):
+            meta_bits.append(f"📦 {rec['size']}")
+        if rec.get("alt_filenames"):
+            meta_bits.append(f"🔀 {len(rec['alt_filenames'])} alternate filename(s)")
+        if meta_bits:
+            ttk.Label(card, text="   •   ".join(meta_bits), font=('Arial', 8),
+                      foreground='#888888').pack(anchor=tk.W, pady=(2, 0))
+
+    def open_collection_window(self):
+        win = tk.Toplevel(self.root)
+        win.title("OTA Collection")
+        win.geometry("1000x680")
+        win.configure(bg=self.APP_BG)
+
+        top = ttk.Frame(win, padding=8)
+        top.pack(fill=tk.X)
+        ttk.Label(top, text="OTA Collection", style='Header.TLabel').pack(side=tk.LEFT)
+        ttk.Button(top, text="🔄 Refresh", command=lambda: self._populate_collection(nb, search_var.get())).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(top, text="🗑 Clear Collection", command=lambda: self._clear_collection(nb, search_var)).pack(side=tk.RIGHT, padx=4)
+
+        search_row = ttk.Frame(win, padding=(8, 0, 8, 8))
+        search_row.pack(fill=tk.X)
+        ttk.Label(search_row, text="🔎 Search device / title / URL / fingerprint:", style='Normal.TLabel').pack(side=tk.LEFT, padx=(0, 6))
+        search_var = tk.StringVar(value="")
+        search_entry = ttk.Entry(search_row, textvariable=search_var, width=50)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        search_entry.bind('<KeyRelease>', lambda e: self._populate_collection(nb, search_var.get()))
+        ttk.Button(search_row, text="✕", width=3, command=lambda: (search_var.set(""), self._populate_collection(nb, ""))).pack(side=tk.LEFT, padx=(6, 0))
+
+        nb = NOTEBOOK_CLS(win)
+        nb.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
+
+        self._populate_collection(nb, "")
+
+    def _clear_collection(self, nb, search_var):
+        if not messagebox.askyesno("Clear Collection", "Are you sure you want to clear the entire OTA collection?"):
+            return
+        with _ota_store_lock:
+            _save_collection({})
+        self._populate_collection(nb, search_var.get() if search_var else "")
+
+    def _populate_collection(self, nb, query=""):
+        for tab_id in nb.tabs():
+            nb.forget(tab_id)
+
+        coll = _load_collection()
+        query = (query or "").strip()
+
+        for os_kind in ("android", "chromeos", "xiaomi"):
+            bucket = coll.get(os_kind, {})
+            filtered = {
+                u: e for u, e in bucket.items()
+                if self._collection_entry_matches_query(u, e, query)
+            }
+            frame = ttk.Frame(nb)
+            nb.add(frame, text=f"{self._os_label(os_kind)} ({len(filtered)})")
+            canvas, inner = self._make_scrollable_frame(frame)
+
+            if not filtered:
+                ttk.Label(inner, text="  No entries found.", style='Normal.TLabel').pack(anchor=tk.W, padx=10, pady=10)
+                continue
+
+            # Most recently seen first
+            items = sorted(filtered.items(), key=lambda kv: kv[1].get("last_seen", ""), reverse=True)
+            for url, entry in items:
+                self._render_collection_card(inner, url, entry)
+
+    def _render_collection_card(self, parent, url, entry):
+        card = ttk.Frame(parent, relief=tk.GROOVE, borderwidth=1, padding=8)
+        card.pack(fill=tk.X, padx=8, pady=4)
+
+        head = ttk.Frame(card)
+        head.pack(fill=tk.X)
+        ttk.Label(head, text=f"👁 first seen: {entry.get('first_seen', '?')}", font=('Arial', 8),
+                  foreground='#888888').pack(side=tk.LEFT)
+        ttk.Label(head, text=f"   🕘 last seen: {entry.get('last_seen', '?')}", font=('Arial', 8),
+                  foreground='#888888').pack(side=tk.LEFT)
+
+        variants = entry.get("variants", [])
+
+        # Primary variant (first one found)
+        main_variant = variants[0] if variants else {}
+        title = main_variant.get("title") or "(no title)"
+        ttk.Label(card, text=title, font=('Arial', 10, 'bold'), wraplength=880,
+                  justify=tk.LEFT).pack(anchor=tk.W, pady=(4, 0))
+
+        url_lbl = tk.Label(card, text=url, font=('Courier', 9), fg='#0066cc', bg=self.APP_BG,
+                            wraplength=880, justify=tk.LEFT, cursor='hand2')
+        url_lbl.pack(anchor=tk.W, pady=(2, 0))
+        url_lbl.bind('<Button-1>', lambda e, u=url: webbrowser.open(u))
+
+        desc = main_variant.get("description", "")
+        if desc:
+            desc_short = desc if len(desc) <= 220 else desc[:220] + "…"
+            ttk.Label(card, text=desc_short, font=('Arial', 9), foreground='#333333',
+                      wraplength=880, justify=tk.LEFT).pack(anchor=tk.W, pady=(2, 0))
+
+        if main_variant.get("size"):
+            ttk.Label(card, text=f"📦 {main_variant['size']}", font=('Arial', 8),
+                      foreground='#888888').pack(anchor=tk.W, pady=(2, 0))
+
+        # Compact marker for "same OTA, different description/size" variants
+        if len(variants) > 1:
+            extra = len(variants) - 1
+            variants_frame = ttk.Frame(card)
+            variants_frame.pack(anchor=tk.W, pady=(4, 0), fill=tk.X)
+            toggle_btn = ttk.Button(
+                variants_frame,
+                text=f"📝 same OTA, {extra} more description variant(s) ▾",
+            )
+            details_holder = {"shown": False, "frame": None}
+
+            def _toggle(v=variants, holder=details_holder, vf=variants_frame):
+                if holder["shown"]:
+                    if holder["frame"]:
+                        holder["frame"].destroy()
+                        holder["frame"] = None
+                    holder["shown"] = False
+                    toggle_btn.config(text=f"📝 same OTA, {extra} more description variant(s) ▾")
+                else:
+                    df = ttk.Frame(vf)
+                    df.pack(fill=tk.X, pady=(4, 0))
+                    for i, var in enumerate(v[1:], start=2):
+                        sub = ttk.Frame(df, relief=tk.FLAT, padding=(10, 4))
+                        sub.pack(fill=tk.X, anchor=tk.W)
+                        vt = var.get("title") or "(no title)"
+                        ttk.Label(sub, text=f"Variant {i}: {vt}", font=('Arial', 9, 'bold'),
+                                  wraplength=850, justify=tk.LEFT).pack(anchor=tk.W)
+                        vd = var.get("description", "")
+                        if vd:
+                            vd_short = vd if len(vd) <= 200 else vd[:200] + "…"
+                            ttk.Label(sub, text=vd_short, font=('Arial', 8), foreground='#555555',
+                                      wraplength=850, justify=tk.LEFT).pack(anchor=tk.W)
+                        if var.get("size"):
+                            ttk.Label(sub, text=f"📦 {var['size']}", font=('Arial', 8),
+                                      foreground='#888888').pack(anchor=tk.W)
+                    holder["frame"] = df
+                    holder["shown"] = True
+                    toggle_btn.config(text=f"📝 same OTA, {extra} more description variant(s) ▴")
+
+            toggle_btn.config(command=_toggle)
+            toggle_btn.pack(anchor=tk.W)
+
+        # Alternate filenames (bruteforce / alt-check) — compact
+        alt_filenames = entry.get("alt_filenames", [])
+        if alt_filenames:
+            alt_text = ", ".join(alt_filenames[:6])
+            if len(alt_filenames) > 6:
+                alt_text += f"  (+{len(alt_filenames) - 6} more)"
+            ttk.Label(card, text=f"🔀 Alternate filenames: {alt_text}", font=('Arial', 8),
+                      foreground='#888888', wraplength=880, justify=tk.LEFT).pack(anchor=tk.W, pady=(4, 0))
+
+        locales = entry.get("locales", [])
+        if locales:
+            loc_text = ", ".join(locales[:8])
+            if len(locales) > 8:
+                loc_text += f"  (+{len(locales) - 8} more)"
+            ttk.Label(card, text=f"🌐 Locales: {loc_text}", font=('Arial', 8),
+                      foreground='#888888', wraplength=880, justify=tk.LEFT).pack(anchor=tk.W, pady=(2, 0))
+
+        fingerprints = entry.get("fingerprints", [])
+        if fingerprints:
+            fp_frame = ttk.Frame(card)
+            fp_frame.pack(anchor=tk.W, pady=(4, 0), fill=tk.X)
+            if len(fingerprints) == 1:
+                fp_lbl = tk.Label(fp_frame, text=f"🔑 {fingerprints[0]}", font=('Courier', 8),
+                                   fg='#666666', bg=self.APP_BG, wraplength=880, justify=tk.LEFT)
+                fp_lbl.pack(anchor=tk.W)
+            else:
+                toggle_btn = ttk.Button(fp_frame, text=f"🔑 {len(fingerprints)} fingerprint(s) ▾")
+                holder = {"shown": False, "frame": None}
+
+                def _toggle_fp(fps=fingerprints, holder=holder, ff=fp_frame):
+                    if holder["shown"]:
+                        if holder["frame"]:
+                            holder["frame"].destroy()
+                            holder["frame"] = None
+                        holder["shown"] = False
+                        toggle_btn.config(text=f"🔑 {len(fps)} fingerprint(s) ▾")
+                    else:
+                        df = ttk.Frame(ff)
+                        df.pack(fill=tk.X, pady=(4, 0))
+                        for fp in fps:
+                            tk.Label(df, text=fp, font=('Courier', 8), fg='#666666', bg=self.APP_BG,
+                                      wraplength=850, justify=tk.LEFT).pack(anchor=tk.W, padx=(10, 0))
+                        holder["frame"] = df
+                        holder["shown"] = True
+                        toggle_btn.config(text=f"🔑 {len(fps)} fingerprint(s) ▴")
+
+                toggle_btn.config(command=_toggle_fp)
+                toggle_btn.pack(anchor=tk.W)
 
     def on_clear_click(self):
         self.output_text.delete(1.0, tk.END)
@@ -3702,6 +4255,19 @@ class OTAProberGUI:
             self._set_ota_link_header(ota_link['url'])
             self.copy_link_button.config(state=tk.NORMAL)
             self._meta_autofill_url(ota_link['url'])
+
+            try:
+                add_ota_record(
+                    os_kind=self.os_mode_var.get(),
+                    url=ota_link.get('url', ''),
+                    title=ota_link.get('title', ''),
+                    description=ota_link.get('description', ''),
+                    size=ota_link.get('size', ''),
+                    locale=self.locale_var.get().strip() if hasattr(self, 'locale_var') else '',
+                    fingerprint=fingerprint,
+                )
+            except Exception:
+                pass
 
             desc_parts = []
             if ota_link.get('title'):
