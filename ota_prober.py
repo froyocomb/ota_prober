@@ -5,6 +5,7 @@
 
 import sys
 import os
+import re
 import gzip
 import urllib.request
 import urllib.error
@@ -1524,9 +1525,10 @@ class OTAProberGUI:
             sel = self.hi_tree_metadata.selection()
             if not sel:
                 return
-            value = self.hi_tree_metadata.item(sel[0], 'values')[1]
+            k, value = self.hi_tree_metadata.item(sel[0], 'values')
             self.root.clipboard_clear()
             self.root.clipboard_append(value)
+            self.hi_metadata_status_var.set(f"Copied: {k}")
 
         def _copy_meta_row(event=None):
             sel = self.hi_tree_metadata.selection()
@@ -1535,6 +1537,7 @@ class OTAProberGUI:
             k, v = self.hi_tree_metadata.item(sel[0], 'values')
             self.root.clipboard_clear()
             self.root.clipboard_append(f"{k}: {v}")
+            self.hi_metadata_status_var.set(f"Copied row: {k}")
 
         self.hi_tree_metadata.bind('<<TreeviewSelect>>', _copy_meta_value)
         self.hi_tree_metadata.bind('<Double-ButtonRelease-1>', _copy_meta_row)
@@ -1561,6 +1564,10 @@ class OTAProberGUI:
         alt_f = ttk.Frame(self.httpinfo_nb)
         self.httpinfo_nb.add(alt_f, text="Alternative Filenames")
 
+        self.hi_altnames_status_var = tk.StringVar(value="")
+        ttk.Label(alt_f, textvariable=self.hi_altnames_status_var, wraplength=1100,
+                  justify=tk.LEFT, foreground='#666666').pack(anchor=tk.W, fill=tk.X, pady=(0, 4))
+
         alt_wrap = ttk.Frame(alt_f)
         alt_wrap.pack(fill=tk.BOTH, expand=True)
         self.hi_list_altnames = tk.Listbox(alt_wrap, font=('Courier', 9), activestyle='none',
@@ -1577,6 +1584,7 @@ class OTAProberGUI:
             value = self.hi_list_altnames.get(sel[0])
             self.root.clipboard_clear()
             self.root.clipboard_append(value)
+            self.hi_altnames_status_var.set(f"Copied: {value}")
 
         self.hi_list_altnames.bind('<<ListboxSelect>>', _copy_alt_selection)
 
@@ -1672,7 +1680,7 @@ class OTAProberGUI:
             self.hi_metadata_status_var.set("Loading…")
 
             self.hi_list_altnames.delete(0, tk.END)
-            self.hi_list_altnames.insert(tk.END, "Not applicable for local files.")
+            self.hi_altnames_status_var.set("Not applicable for local files.")
 
             self._httpinfo_last_result = None
             threading.Thread(target=self._httpinfo_metadata_worker, args=(url,), daemon=True).start()
@@ -1690,7 +1698,7 @@ class OTAProberGUI:
             self.hi_metadata_status_var.set("Loading…")
 
             self.hi_list_altnames.delete(0, tk.END)
-            self.hi_list_altnames.insert(tk.END, "Checking…")
+            self.hi_altnames_status_var.set("Checking…")
 
             self._httpinfo_last_result = None
 
@@ -1854,15 +1862,37 @@ class OTAProberGUI:
                 pass
 
         try:
+            status_cb = lambda m: self.root.after(0, self.hi_altnames_status_var.set, m)
+
+            # First, a cheap check that works purely off the URL's own
+            # filename (long-form <-> bare sha1.zip, plus common prefix
+            # variants), no metadata or fingerprints required — this is
+            # what lets pasting either the long descriptive URL or the
+            # bare sha1.zip URL find the "other" form of the same file.
+            direct = probe_direct_url_alternate(url, status_cb=status_cb)
+
             pre_fp = meta.get('fields', {}).get('pre-build') or self.current_ota_precondition
             post_fp = meta.get('fields', {}).get('post-build') or self.current_ota_postcondition
             alt = probe_alternative_filenames(
-                url, last_modified,
-                pre_fp, post_fp,
-                status_cb=lambda m: self.root.after(
-                    0, lambda: (self.hi_list_altnames.delete(0, tk.END),
-                                self.hi_list_altnames.insert(tk.END, m))))
-            self.root.after(0, self._httpinfo_display_altnames, alt)
+                url, last_modified, pre_fp, post_fp, status_cb=status_cb)
+
+            # Merge results, direct URL-based hits first, de-duplicated by
+            # URL so the same working link never appears twice even if
+            # both probes happened to generate the same candidate name.
+            seen_urls = set()
+            merged_results = []
+            for name, candidate_url, ok in list(direct.get('results', [])) + list(alt.get('results', [])):
+                if candidate_url in seen_urls:
+                    continue
+                seen_urls.add(candidate_url)
+                merged_results.append((name, candidate_url, ok))
+
+            merged = {
+                'checked': direct.get('checked') or alt.get('checked'),
+                'reason': direct.get('reason') or alt.get('reason'),
+                'results': merged_results,
+            }
+            self.root.after(0, self._httpinfo_display_altnames, merged)
         except Exception as exc:
             self.root.after(0, self._httpinfo_display_altnames,
                              {'checked': False, 'reason': f"Error: {exc}", 'results': []})
@@ -1937,16 +1967,26 @@ class OTAProberGUI:
         self.hi_list_altnames.delete(0, tk.END)
 
         if not alt.get('checked'):
-            self.hi_list_altnames.insert(tk.END, alt.get('reason', 'Not checked'))
+            self.hi_altnames_status_var.set(alt.get('reason') or 'Not checked')
             return
 
-        working = [candidate_url for name, candidate_url, ok in alt.get('results', []) if ok]
+        # De-duplicate by URL (in case any candidate name collapses to the
+        # same resolved URL as another one) while preserving order.
+        seen = set()
+        working = []
+        for name, candidate_url, ok in alt.get('results', []):
+            if not ok or candidate_url in seen:
+                continue
+            seen.add(candidate_url)
+            working.append(candidate_url)
+
         if not working:
-            self.hi_list_altnames.insert(tk.END, "No working alternative links found.")
+            self.hi_altnames_status_var.set("No working alternative links found.")
             return
 
-        for url in working:
-            self.hi_list_altnames.insert(tk.END, url)
+        for u in working:
+            self.hi_list_altnames.insert(tk.END, u)
+        self.hi_altnames_status_var.set(f"Found {len(working)} working alternative link(s).")
 
     # ======================================================================
     #  МЕТОДИ ДЛЯ РОБОТИ З ZIP TREE (з використанням кешу)
@@ -3200,6 +3240,8 @@ class OTAProberGUI:
         # Очищаємо Alternative Filenames
         if hasattr(self, 'hi_list_altnames'):
             self.hi_list_altnames.delete(0, tk.END)
+        if hasattr(self, 'hi_altnames_status_var'):
+            self.hi_altnames_status_var.set("")
 
         # Очищаємо ZIP Tree разом з кешем
         if hasattr(self, 'zip_tree'):
@@ -5722,6 +5764,134 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
 # ── Alternative filename prober (legacy May 2016 naming scheme) ─────────
 
 LEGACY_LASTMOD_PREFIX = "Mon, 16 May 2016"
+
+# Matches the "long form" suffix Google's OTA servers sometimes tack onto
+# the bare sha1, e.g.:
+#   <sha1>.re_signed-volantis-LRX21R-from-LRX21Q-factory-recovery-ok.zip
+#   <sha1>.signed-bullhead-NRD90M-from-MOB30I.zip
+#   <sha1>.signed-signed-angler-MMB29M-from-LMY48I.abc12345.zip
+# Captured group 1 is the "descriptive" part between the sha1 and the
+# final .zip (without the leading dot / trailing extension), used both to
+# strip it down to a bare sha1.zip candidate, and to recognize/rebuild it
+# from a bare sha1 when the descriptive part is supplied separately.
+_OTA_LONGFORM_SUFFIX_RE = re.compile(
+    r'^([0-9a-fA-F]{40})\.((?:re_)?(?:signed-)+.+)\.zip$'
+)
+
+
+def _split_ota_longform_filename(fname: str):
+    """If fname looks like '<sha1>.<descriptive-suffix>.zip', return
+    (sha1, descriptive_suffix). Otherwise return (None, None)."""
+    m = _OTA_LONGFORM_SUFFIX_RE.match(fname)
+    if not m:
+        return None, None
+    return m.group(1), m.group(2)
+
+
+# Small in-memory cache: sha1 (lowercase) -> descriptive suffix, populated
+# whenever a long-form OTA URL is seen, so that later a bare sha1.zip URL
+# for the same file can be expanded back to its long form.
+OTA_SHA1_SUFFIX_CACHE = {}
+
+
+def remember_ota_longform(url: str):
+    """If url's filename is long-form (sha1.<suffix>.zip), cache the
+    suffix against the sha1 for later bare -> long-form lookups."""
+    fname = urlparse(url).path.rsplit('/', 1)[-1]
+    sha1, suffix = _split_ota_longform_filename(fname)
+    if sha1:
+        OTA_SHA1_SUFFIX_CACHE[sha1.lower()] = suffix
+
+
+def _ota_suffix_variants(device_and_builds: str):
+    """
+    Given the 'device-POSTBUILD-from-PREBUILD[-extra-words]' core of a
+    long-form suffix (with any 'signed-'/'re_signed-'/etc. prefix already
+    stripped off), generate the common prefix variants seen in the wild:
+    signed-, re_signed-, Dotasigned-, signed-signed-.
+    """
+    return [
+        f"signed-{device_and_builds}",
+        f"re_signed-{device_and_builds}",
+        f"Dotasigned-{device_and_builds}",
+        f"signed-signed-{device_and_builds}",
+    ]
+
+
+def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12):
+    """
+    Directly inspect the *given* URL's filename (no metadata / fingerprint
+    lookups needed) and check other forms of it against the server:
+
+      - Long form given (sha1.<descriptive-suffix>.zip)
+          -> try the bare sha1.zip, AND try the other common prefix
+             variants of the same descriptive suffix (signed-/re_signed-/
+             Dotasigned-/signed-signed-), in case the server has the file
+             under a different one of those than the one given.
+      - Bare form given (sha1.zip) and the descriptive suffix is already
+        known from elsewhere in this session (e.g. it was seen on a
+        previous long-form URL for the same sha1)
+          -> rebuild the long-form URL(s) and check whether they resolve.
+
+    Returns a dict: {'checked': bool, 'reason': str|None,
+                      'results': [(name, url, working), ...]}
+    """
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    out = {'checked': False, 'reason': None, 'results': []}
+
+    parsed = urlparse(url)
+    dir_path = parsed.path.rsplit('/', 1)[0] + '/'
+    base_prefix = f"{parsed.scheme}://{parsed.netloc}{dir_path}"
+    fname = parsed.path.rsplit('/', 1)[-1]
+
+    sha1, suffix = _split_ota_longform_filename(fname)
+
+    if sha1:
+        # Remember it for later bare -> long-form lookups.
+        OTA_SHA1_SUFFIX_CACHE[sha1.lower()] = suffix
+
+        # Strip whichever known prefix ('re_signed-', 'signed-signed-',
+        # 'Dotasigned-', 'signed-') is actually present, to get the bare
+        # 'device-POSTBUILD-from-PREBUILD...' core so we can rebuild the
+        # other prefix variants.
+        core = suffix
+        for pfx in ('signed-signed-', 're_signed-', 'Dotasigned-', 'signed-'):
+            if core.startswith(pfx):
+                core = core[len(pfx):]
+                break
+
+        candidates = [f"{sha1}.zip"]
+        for variant_suffix in _ota_suffix_variants(core):
+            if variant_suffix == suffix:
+                continue
+            candidates.append(f"{sha1}.{variant_suffix}.zip")
+
+        _s("Trying short (bare sha1) and alternate long-form variants…")
+        out['checked'] = True
+        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+        return out
+
+    # Not long-form: is it a bare sha1.zip?
+    bare_m = re.match(r'^([0-9a-fA-F]{40})\.zip$', fname)
+    if not bare_m:
+        out['reason'] = "URL filename doesn't look like a bare sha1.zip or a known long-form OTA name"
+        return out
+
+    sha1 = bare_m.group(1)
+    known_suffix = OTA_SHA1_SUFFIX_CACHE.get(sha1.lower())
+    if not known_suffix:
+        out['reason'] = ("Bare sha1.zip given, but no long-form suffix is known yet for this "
+                          "sha1 in this session — paste the long-form URL once first.")
+        return out
+
+    candidates = [f"{sha1}.{known_suffix}.zip"]
+    _s("Trying long (descriptive) form…")
+    out['checked'] = True
+    out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+    return out
 
 
 def _build_id_from_fingerprint(fingerprint: str):
