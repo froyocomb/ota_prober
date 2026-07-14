@@ -1392,7 +1392,7 @@ class OTAProberGUI:
         # Modest default width; actual width is widened at display time
         # (see _httpinfo_display_metadata) based on content, capped so it
         # can never push the status side-panel off screen.
-        self.hi_tree_metadata.column("value", width=560, stretch=False)
+        self.hi_tree_metadata.column("value", width=900, stretch=False)
         meta_vsb = ttk.Scrollbar(meta_tree_wrap, orient=tk.VERTICAL, command=self.hi_tree_metadata.yview)
         meta_hsb = ttk.Scrollbar(meta_tree_wrap, orient=tk.HORIZONTAL, command=self.hi_tree_metadata.xview)
         self.hi_tree_metadata.configure(yscrollcommand=meta_vsb.set, xscrollcommand=meta_hsb.set)
@@ -3008,6 +3008,34 @@ class OTAProberGUI:
         self.ota_link_label.config(text="")
         self.current_ota_link = None
         self.copy_link_button.config(state=tk.DISABLED)
+
+        # Очищаємо Payload Metadata
+        if hasattr(self, 'hi_tree_metadata'):
+            for ch in self.hi_tree_metadata.get_children():
+                self.hi_tree_metadata.delete(ch)
+            self.hi_tree_metadata.column("value", width=1000, stretch=False)
+        if hasattr(self, 'hi_metadata_status_var'):
+            self.hi_metadata_status_var.set("")
+
+        # Очищаємо Alternative Filenames
+        if hasattr(self, 'hi_list_altnames'):
+            self.hi_list_altnames.delete(0, tk.END)
+
+        # Очищаємо ZIP Tree разом з кешем
+        if hasattr(self, 'zip_tree'):
+            for ch in self.zip_tree.get_children():
+                self.zip_tree.delete(ch)
+        if hasattr(self, 'zip_tree_cache'):
+            self.zip_tree_cache = {
+                'url': None,
+                'tail_data': None,
+                'tail_offset': 0,
+                'total_size': 0,
+                'entries': None,
+            }
+        if hasattr(self, 'zip_tree_status_var'):
+            self.zip_tree_status_var.set("Press 'Scan ZIP Tree' to view contents.")
+
         self.update_status("Output cleared")
 
     def on_copy_click(self):
