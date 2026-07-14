@@ -12,6 +12,7 @@ import json
 import io
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog
+from tkinter import font as tkfont
 import threading
 from datetime import datetime
 import webbrowser
@@ -1538,6 +1539,17 @@ class OTAProberGUI:
         self.hi_tree_metadata.bind('<<TreeviewSelect>>', _copy_meta_value)
         self.hi_tree_metadata.bind('<Double-ButtonRelease-1>', _copy_meta_row)
 
+        # Окремий тег для полів, що прийшли не з основного metadata-файлу
+        # (напр. version-baseband з radio.versions.img) — показуємо їх
+        # курсивом/моношрифтом, щоб було видно, що це "додаткова" інформація.
+        try:
+            base_font = tkfont.nametofont("TkDefaultFont")
+            baseband_font = tkfont.Font(font=base_font)
+            baseband_font.configure(slant="italic", family="Courier New")
+        except Exception:
+            baseband_font = ("Courier New", 10, "italic")
+        self.hi_tree_metadata.tag_configure("baseband_extra", font=baseband_font)
+
         meta_side = ttk.Frame(meta_f, padding=(8, 6), width=270)
         meta_side.pack(side=tk.RIGHT, fill=tk.Y)
         meta_side.pack_propagate(False)
@@ -1907,7 +1919,8 @@ class OTAProberGUI:
         elif meta.get('found'):
             fields = meta.get('fields', {})
             for k, v in fields.items():
-                self.hi_tree_metadata.insert("", tk.END, values=(k, v))
+                tags = ("baseband_extra",) if k == 'version-baseband' else ()
+                self.hi_tree_metadata.insert("", tk.END, values=(k, v), tags=tags)
             _autosize_value_column(fields.values())
             if meta.get('is_hboot'):
                 self.hi_metadata_status_var.set(
@@ -4988,6 +5001,47 @@ def _find_zip_hboot_entry(tail_blob: bytes, tail_offset: int):
     return _find_zip_entry_by_predicate(tail_blob, tail_offset, _is_root_hboot)
 
 
+def _find_zip_radio_versions_entry(tail_blob: bytes, tail_offset: int):
+    """
+    Look for a 'radio.versions.img' file sitting directly in the ZIP's root
+    directory (not nested inside subfolders) in the central directory.
+    Returns (local_header_offset, compressed_size, compression_method,
+    file_name) or None if not found.
+    """
+    def _is_root_radio_versions(name: bytes) -> bool:
+        try:
+            lname = name.decode('utf-8', errors='replace').lower()
+        except Exception:
+            return False
+        return lname == 'radio.versions.img'
+
+    return _find_zip_entry_by_predicate(tail_blob, tail_offset, _is_root_radio_versions)
+
+
+def _extract_version_baseband(blob: bytes):
+    """
+    Scan a decompressed radio.versions.img blob for a line like:
+
+        version-baseband: D4.01-9625-05.45+FSG-9625-02.117
+
+    Returns the full "version-baseband: ..." value (everything after the
+    colon, stripped) or None if no such line is found.
+    """
+    try:
+        text = blob.decode('utf-8', errors='replace')
+    except Exception:
+        return None
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        low = line.lower()
+        if low.startswith('version-baseband:'):
+            return line.split(':', 1)[1].strip()
+        if low.startswith('version-baseband='):
+            return line.split('=', 1)[1].strip()
+    return None
+
+
 def _extract_printable_strings(blob: bytes, min_len: int = 4):
     """
     Extract runs of printable ASCII (and a few common separators like '.',
@@ -5165,7 +5219,7 @@ def _find_local_metadata_header(data: bytes, offset: int = 0):
     return None
 
 
-def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
+def _fetch_payload_metadata_inner(url: str, status_cb=None, timeout: int = 30,
                             chunk_bytes: int = 2 * 1024 * 1024,
                             return_raw_tail: bool = False,
                             local_path: str = None):
@@ -5520,6 +5574,149 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
     if return_raw_tail:
         return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
     return out
+
+
+# Кеш вмісту radio.versions.img по URL/шляху, щоб при повторному
+# перегляді metadata (напр. після перемикання вкладок) не довантажувати
+# і не розпаковувати той самий файл із ZIP-архіву заново.
+_RADIO_VERSIONS_CACHE = {}
+
+
+def _fetch_radio_versions_baseband(url, tail_data, tail_offset, local_path=None,
+                                    status_cb=None, timeout=30):
+    """
+    Look inside the ZIP central directory (already fetched into `tail_data`)
+    for a root-level 'radio.versions.img' entry. If found, extract just
+    that entry (using the same local-path/HTTP range machinery as the rest
+    of fetch_payload_metadata), cache its decompressed bytes keyed by
+    url/local_path, and pull out a 'version-baseband: ...' line if present.
+
+    Returns the baseband version string, or None if not found/applicable.
+    """
+    def _s(msg):
+        if status_cb:
+            status_cb(msg)
+
+    cache_key = local_path or url
+    if cache_key in _RADIO_VERSIONS_CACHE:
+        cached = _RADIO_VERSIONS_CACHE[cache_key]
+        return cached.get('version_baseband')
+
+    if not tail_data:
+        return None
+
+    try:
+        entry = _find_zip_radio_versions_entry(tail_data, tail_offset)
+        if not entry:
+            _RADIO_VERSIONS_CACHE[cache_key] = {'version_baseband': None}
+            return None
+
+        local_header_offset, compressed_size, compression_method, name = entry
+
+        if local_path:
+            def _get_range(range_header):
+                spec = range_header.split('=', 1)[1]
+                start_s, end_s = spec.split('-', 1)
+                start = int(start_s)
+                end = int(end_s)
+                with open(local_path, 'rb') as f:
+                    f.seek(start)
+                    return f.read(end - start + 1)
+        else:
+            def _get_range(range_header):
+                req = urllib.request.Request(url, headers={
+                    'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
+                    'Accept-Encoding': 'identity',
+                    'Range': range_header,
+                })
+                ctx = ssl.create_default_context()
+                with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                    return resp.read()
+
+        lh_start_in_tail = local_header_offset - tail_offset
+        if 0 <= lh_start_in_tail and lh_start_in_tail + 30 <= len(tail_data):
+            lh_blob = tail_data
+            lh_pos = lh_start_in_tail
+        else:
+            _s(f"Fetching {name} local file header…")
+            lh_blob = _get_range(f'bytes={local_header_offset}-{local_header_offset + 4096}')
+            lh_pos = 0
+
+        if lh_blob[lh_pos:lh_pos + 4] != LFH_SIG:
+            _RADIO_VERSIONS_CACHE[cache_key] = {'version_baseband': None}
+            return None
+
+        name_len = struct.unpack('<H', lh_blob[lh_pos + 26:lh_pos + 28])[0]
+        extra_len = struct.unpack('<H', lh_blob[lh_pos + 28:lh_pos + 30])[0]
+        data_start_in_lh_blob = lh_pos + 30 + name_len + extra_len
+
+        if data_start_in_lh_blob + compressed_size <= len(lh_blob):
+            entry_data = lh_blob[data_start_in_lh_blob:data_start_in_lh_blob + compressed_size]
+        else:
+            abs_data_start = local_header_offset + 30 + name_len + extra_len
+            _s(f"Fetching {name} entry ({compressed_size} bytes)…")
+            entry_data = _get_range(f'bytes={abs_data_start}-{abs_data_start + compressed_size - 1}')
+
+        if compression_method == 0:
+            plain = entry_data
+        elif compression_method == 8:
+            try:
+                plain = zlib.decompress(entry_data, -15)
+            except Exception:
+                plain = b''
+        else:
+            plain = b''
+
+        version_baseband = _extract_version_baseband(plain) if plain else None
+
+        # Кешуємо для наступних викликів (напр. повторний перегляд metadata
+        # без повторного мережевого запиту).
+        _RADIO_VERSIONS_CACHE[cache_key] = {
+            'version_baseband': version_baseband,
+            'raw_bytes': plain,
+        }
+        return version_baseband
+    except Exception:
+        return None
+
+
+def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
+                            chunk_bytes: int = 2 * 1024 * 1024,
+                            return_raw_tail: bool = False,
+                            local_path: str = None):
+    """
+    Thin wrapper around _fetch_payload_metadata_inner: after the normal
+    metadata lookup finishes, also check whether the ZIP contains a
+    root-level 'radio.versions.img' and, if it has a 'version-baseband:'
+    line, append it as an extra field at the very end of the result
+    (the GUI renders this field in a distinct font — see
+    _httpinfo_display_metadata / tag 'baseband_extra').
+    """
+    # Always ask the inner function for the raw tail internally (no extra
+    # network cost — it's the same single fetch either way), so we can
+    # reuse tail_data to look for radio.versions.img without a second
+    # round-trip. We strip tail_data back out again at the end unless the
+    # caller actually asked for return_raw_tail=True.
+    result = _fetch_payload_metadata_inner(
+        url, status_cb=status_cb, timeout=timeout,
+        chunk_bytes=chunk_bytes, return_raw_tail=True,
+        local_path=local_path)
+
+    meta = result['metadata']
+    tail_data = result.get('tail_data', b'')
+    tail_offset = result.get('tail_offset', 0)
+
+    if meta.get('found'):
+        baseband = _fetch_radio_versions_baseband(
+            url, tail_data, tail_offset, local_path=local_path,
+            status_cb=status_cb, timeout=timeout)
+        if baseband:
+            meta.setdefault('fields', {})
+            meta['fields']['version-baseband'] = baseband
+
+    if return_raw_tail:
+        return result
+    return meta
 
 
 # ── Alternative filename prober (legacy May 2016 naming scheme) ─────────
