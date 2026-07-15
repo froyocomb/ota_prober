@@ -825,16 +825,10 @@ class OTAProberGUI:
         поточної розкладки клавіатури (укр., рос., будь-яка інша).
         """
         CTRL_CHARS = {
-            'copy':  '\x03',
-            'paste': '\x16',
-            'cut':   '\x18',
-            'all':   '\x01',
-        }
-        KEYSYMS = {
-            'copy':  {'c', 'C'},
-            'paste': {'v', 'V'},
-            'cut':   {'x', 'X'},
-            'all':   {'a', 'A'},
+            '\x03': 'copy',
+            '\x16': 'paste',
+            '\x18': 'cut',
+            '\x01': 'all',
         }
 
         def get_focused_text_widget():
@@ -843,33 +837,24 @@ class OTAProberGUI:
                 return w
             return None
 
-        def do_copy(event):
-            w = get_focused_text_widget()
-            if w is None:
-                return
+        def do_copy(w):
             try:
                 if isinstance(w, (tk.Entry, ttk.Entry)):
                     if w.selection_present():
                         text = w.selection_get()
-                    else:
-                        return
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
                 else:
-                    text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
-                self.root.clipboard_clear()
-                self.root.clipboard_append(text)
+                    if w.tag_ranges(tk.SEL):
+                        text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
             except tk.TclError:
                 pass
-            return "break"
 
-        def do_paste(event):
-            w = get_focused_text_widget()
-            if w is None:
-                return
+        def do_paste(w):
             try:
                 clip = self.root.clipboard_get()
-            except tk.TclError:
-                return "break"
-            try:
                 if isinstance(w, (tk.Entry, ttk.Entry)):
                     if w.selection_present():
                         w.delete(tk.SEL_FIRST, tk.SEL_LAST)
@@ -880,35 +865,25 @@ class OTAProberGUI:
                     w.insert(tk.INSERT, clip)
             except tk.TclError:
                 pass
-            return "break"
 
-        def do_cut(event):
-            w = get_focused_text_widget()
-            if w is None:
-                return
+        def do_cut(w):
             try:
                 if isinstance(w, (tk.Entry, ttk.Entry)):
-                    if not w.selection_present():
-                        return "break"
-                    text = w.selection_get()
-                    self.root.clipboard_clear()
-                    self.root.clipboard_append(text)
-                    w.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                    if w.selection_present():
+                        text = w.selection_get()
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
+                        w.delete(tk.SEL_FIRST, tk.SEL_LAST)
                 else:
-                    if not w.tag_ranges(tk.SEL):
-                        return "break"
-                    text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
-                    self.root.clipboard_clear()
-                    self.root.clipboard_append(text)
-                    w.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                    if w.tag_ranges(tk.SEL):
+                        text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
+                        w.delete(tk.SEL_FIRST, tk.SEL_LAST)
             except tk.TclError:
                 pass
-            return "break"
 
-        def do_select_all(event):
-            w = get_focused_text_widget()
-            if w is None:
-                return
+        def do_select_all(w):
             try:
                 if isinstance(w, (tk.Entry, ttk.Entry)):
                     w.selection_range(0, tk.END)
@@ -916,38 +891,32 @@ class OTAProberGUI:
                     w.tag_add(tk.SEL, '1.0', tk.END)
             except tk.TclError:
                 pass
-            return "break"
-
-        def matches(event, action):
-            if event.char == CTRL_CHARS[action]:
-                return True
-            ks = event.keysym
-            if (event.state & 0x4) and ks in KEYSYMS[action]:
-                return True
-            return False
 
         def on_key(event):
-            if matches(event, 'copy'):
-                return do_copy(event)
-            if matches(event, 'paste'):
-                return do_paste(event)
-            if matches(event, 'cut'):
-                return do_cut(event)
-            if matches(event, 'all'):
-                return do_select_all(event)
-            # Якщо це Ctrl-комбінація, яку ми обробляємо на bind_class
-            if event.state & 0x4 and event.keysym.lower() in ('c', 'v', 'x', 'a'):
-                return "break"
+            if not (event.state & 0x4):
+                return
+            
+            if event.keysym.lower() in ('c', 'v', 'x'):
+                return
 
-        for widget_class in ('Entry', 'Text', 'TEntry', 'TCombobox'):
-            self.root.bind_class(widget_class, '<Control-c>', on_key)
-            self.root.bind_class(widget_class, '<Control-C>', on_key)
-            self.root.bind_class(widget_class, '<Control-v>', on_key)
-            self.root.bind_class(widget_class, '<Control-V>', on_key)
-            self.root.bind_class(widget_class, '<Control-x>', on_key)
-            self.root.bind_class(widget_class, '<Control-X>', on_key)
-            self.root.bind_class(widget_class, '<Control-a>', on_key)
-            self.root.bind_class(widget_class, '<Control-A>', on_key)
+            action = CTRL_CHARS.get(event.char)
+            
+            w = get_focused_text_widget()
+            if not w:
+                return
+
+            if action == 'copy':
+                do_copy(w)
+            elif action == 'paste':
+                do_paste(w)
+            elif action == 'cut':
+                do_cut(w)
+            elif action == 'all' or event.keysym.lower() == 'a':
+                do_select_all(w)
+            else:
+                return
+            
+            return "break"
 
         self.root.bind_all('<Key>', on_key)
 
