@@ -148,6 +148,30 @@ def _norm_str(s):
     return (s or "").strip()
 
 
+def set_collection_tags(os_kind, url, tags):
+    """Overwrite the tag list for a given collection entry."""
+    clean_tags = sorted(set(_norm_str(t) for t in (tags or []) if _norm_str(t)))
+    with _ota_store_lock:
+        coll = _load_collection()
+        bucket = coll.get(os_kind, {})
+        entry = bucket.get(url)
+        if entry is None:
+            return False
+        entry["tags"] = clean_tags
+        _save_collection(coll)
+        return True
+
+
+def get_all_collection_tags(coll):
+    """Return a sorted set of every tag used anywhere in the collection."""
+    tags = set()
+    for bucket in coll.values():
+        for entry in bucket.values():
+            for t in entry.get("tags", []) or []:
+                tags.add(t)
+    return sorted(tags)
+
+
 def add_ota_record(os_kind, url, title="", description="", size="",
                     locale="", fingerprint="", alt_filenames=None):
     url = _norm_str(url)
@@ -190,6 +214,7 @@ def add_ota_record(os_kind, url, title="", description="", size="",
                 "alt_filenames": [],
                 "locales": [],
                 "fingerprints": [],
+                "tags": [],
             }
             bucket[url] = entry
 
@@ -3484,6 +3509,8 @@ class OTAProberGUI:
             _save_history([])
         self._populate_history(nb, search_var.get() if search_var else "")
 
+    HISTORY_PAGE_SIZE = 20
+
     def _populate_history(self, nb, query=""):
         for tab_id in nb.tabs():
             nb.forget(tab_id)
@@ -3499,16 +3526,88 @@ class OTAProberGUI:
 
         for os_kind in ("android", "chromeos", "xiaomi"):
             recs = by_os.get(os_kind, [])
-            frame = ttk.Frame(nb)
-            nb.add(frame, text=f"{self._os_label(os_kind)} ({len(recs)})")
-            canvas, inner = self._make_scrollable_frame(frame)
+            tab = ttk.Frame(nb)
+            nb.add(tab, text=f"{self._os_label(os_kind)} ({len(recs)})")
+            self._build_paginated_tab(
+                tab, recs,
+                page_size=self.HISTORY_PAGE_SIZE,
+                render_item=self._render_history_card,
+            )
 
-            if not recs:
-                ttk.Label(inner, text="  No entries found.", style='Normal.TLabel').pack(anchor=tk.W, padx=10, pady=10)
-                continue
+    def _build_paginated_tab(self, tab, items, page_size, render_item):
+        """Builds a scrollable list of items inside `tab`, with a Google-style
+        page-number bar pinned at the bottom (only shown if >1 page)."""
+        state = {"page": 0}
+        total = len(items)
+        num_pages = max(1, (total + page_size - 1) // page_size)
 
-            for rec in recs:
-                self._render_history_card(inner, rec)
+        content_holder = ttk.Frame(tab)
+        content_holder.pack(fill=tk.BOTH, expand=True)
+
+        pager_holder = ttk.Frame(tab)
+        pager_holder.pack(fill=tk.X, side=tk.BOTTOM)
+
+        def render_page():
+            for child in content_holder.winfo_children():
+                child.destroy()
+            for child in pager_holder.winfo_children():
+                child.destroy()
+
+            if not items:
+                ttk.Label(content_holder, text="  No entries found.", style='Normal.TLabel').pack(anchor=tk.W, padx=10, pady=10)
+                return
+
+            canvas, inner = self._make_scrollable_frame(content_holder)
+            start = state["page"] * page_size
+            page_items = items[start:start + page_size]
+            for it in page_items:
+                render_item(inner, it)
+
+            if num_pages > 1:
+                self._build_pager_bar(pager_holder, state["page"], num_pages, go_to_page)
+
+        def go_to_page(p):
+            state["page"] = max(0, min(p, num_pages - 1))
+            render_page()
+
+        render_page()
+
+    def _build_pager_bar(self, parent, current_page, num_pages, on_select):
+        """Renders a compact Google-style pager: << < 1 2 3 ... N > >>"""
+        bar = ttk.Frame(parent, padding=(0, 6))
+        bar.pack(anchor=tk.CENTER)
+
+        def _btn(text, page, enabled=True):
+            b = ttk.Button(bar, text=text, width=3 if text.isdigit() else 2,
+                           command=(lambda: on_select(page)) if enabled else None)
+            if not enabled:
+                b.state(['disabled'])
+            if enabled and text.isdigit() and page == current_page:
+                b.state(['pressed'])
+            b.pack(side=tk.LEFT, padx=1)
+
+        _btn("«", 0, enabled=current_page > 0)
+        _btn("‹", current_page - 1, enabled=current_page > 0)
+
+        # Compute a compact window of page numbers around current_page
+        window = 2
+        pages_to_show = set()
+        pages_to_show.add(0)
+        pages_to_show.add(num_pages - 1)
+        for p in range(current_page - window, current_page + window + 1):
+            if 0 <= p < num_pages:
+                pages_to_show.add(p)
+        sorted_pages = sorted(pages_to_show)
+
+        last_shown = None
+        for p in sorted_pages:
+            if last_shown is not None and p - last_shown > 1:
+                ttk.Label(bar, text="…", width=2, anchor=tk.CENTER).pack(side=tk.LEFT, padx=1)
+            _btn(str(p + 1), p, enabled=True)
+            last_shown = p
+
+        _btn("›", current_page + 1, enabled=current_page < num_pages - 1)
+        _btn("»", num_pages - 1, enabled=current_page < num_pages - 1)
 
     def _render_history_card(self, parent, rec):
         card = ttk.Frame(parent, relief=tk.GROOVE, borderwidth=1, padding=8)
@@ -3553,66 +3652,165 @@ class OTAProberGUI:
             ttk.Label(card, text="   •   ".join(meta_bits), font=('Arial', 8),
                       foreground='#888888').pack(anchor=tk.W, pady=(2, 0))
 
+    COLLECTION_SORT_OPTIONS = [
+        ("Last seen (newest)", "last_seen_desc"),
+        ("Last seen (oldest)", "last_seen_asc"),
+        ("First seen (newest)", "first_seen_desc"),
+        ("First seen (oldest)", "first_seen_asc"),
+        ("Title (A-Z)", "title_asc"),
+        ("Title (Z-A)", "title_desc"),
+        ("Size (largest)", "size_desc"),
+        ("Size (smallest)", "size_asc"),
+    ]
+
     def open_collection_window(self):
         win = tk.Toplevel(self.root)
         win.title("OTA Collection")
-        win.geometry("1000x680")
+        win.geometry("1050x700")
         win.configure(bg=self.APP_BG)
 
         top = ttk.Frame(win, padding=8)
         top.pack(fill=tk.X)
         ttk.Label(top, text="OTA Collection", style='Header.TLabel').pack(side=tk.LEFT)
-        ttk.Button(top, text="🔄 Refresh", command=lambda: self._populate_collection(nb, search_var.get())).pack(side=tk.RIGHT, padx=4)
-        ttk.Button(top, text="🗑 Clear Collection", command=lambda: self._clear_collection(nb, search_var)).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(top, text="🔄 Refresh", command=lambda: self._populate_collection(nb, search_var.get(), sort_var.get(), tag_filter_var.get())).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(top, text="🗑 Clear Collection", command=lambda: self._clear_collection(nb, search_var, sort_var, tag_filter_var)).pack(side=tk.RIGHT, padx=4)
 
-        search_row = ttk.Frame(win, padding=(8, 0, 8, 8))
+        search_row = ttk.Frame(win, padding=(8, 0, 8, 4))
         search_row.pack(fill=tk.X)
-        ttk.Label(search_row, text="🔎 Search device / title / URL / fingerprint:", style='Normal.TLabel').pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Label(search_row, text="🔎 Search device / title / URL / fingerprint / tag:", style='Normal.TLabel').pack(side=tk.LEFT, padx=(0, 6))
         search_var = tk.StringVar(value="")
-        search_entry = ttk.Entry(search_row, textvariable=search_var, width=50)
+        search_entry = ttk.Entry(search_row, textvariable=search_var, width=40)
         search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        search_entry.bind('<KeyRelease>', lambda e: self._populate_collection(nb, search_var.get()))
-        ttk.Button(search_row, text="✕", width=3, command=lambda: (search_var.set(""), self._populate_collection(nb, ""))).pack(side=tk.LEFT, padx=(6, 0))
+        search_entry.bind('<KeyRelease>', lambda e: self._populate_collection(nb, search_var.get(), sort_var.get(), tag_filter_var.get()))
+        ttk.Button(search_row, text="✕", width=3, command=lambda: (search_var.set(""), self._populate_collection(nb, "", sort_var.get(), tag_filter_var.get()))).pack(side=tk.LEFT, padx=(6, 0))
+
+        filter_row = ttk.Frame(win, padding=(8, 0, 8, 8))
+        filter_row.pack(fill=tk.X)
+
+        ttk.Label(filter_row, text="Sort by:", style='Normal.TLabel').pack(side=tk.LEFT, padx=(0, 6))
+        sort_var = tk.StringVar(value=self.COLLECTION_SORT_OPTIONS[0][0])
+        sort_combo = ttk.Combobox(filter_row, textvariable=sort_var, state="readonly", width=20,
+                                   values=[label for label, _ in self.COLLECTION_SORT_OPTIONS])
+        sort_combo.pack(side=tk.LEFT, padx=(0, 16))
+        sort_combo.bind('<<ComboboxSelected>>', lambda e: self._populate_collection(nb, search_var.get(), sort_var.get(), tag_filter_var.get()))
+
+        ttk.Label(filter_row, text="Tag:", style='Normal.TLabel').pack(side=tk.LEFT, padx=(0, 6))
+        tag_filter_var = tk.StringVar(value="All tags")
+        tag_filter_combo = ttk.Combobox(filter_row, textvariable=tag_filter_var, state="readonly", width=20,
+                                         values=["All tags"] + get_all_collection_tags(_load_collection()))
+        tag_filter_combo.pack(side=tk.LEFT)
+        tag_filter_combo.bind('<<ComboboxSelected>>', lambda e: self._populate_collection(nb, search_var.get(), sort_var.get(), tag_filter_var.get()))
+        self._collection_tag_filter_combo = tag_filter_combo
 
         nb = NOTEBOOK_CLS(win)
         nb.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
 
-        self._populate_collection(nb, "")
+        self._populate_collection(nb, "", sort_var.get(), tag_filter_var.get())
 
-    def _clear_collection(self, nb, search_var):
+    COLLECTION_PAGE_SIZE = 20
+
+    def _clear_collection(self, nb, search_var, sort_var=None, tag_filter_var=None):
         if not messagebox.askyesno("Clear Collection", "Are you sure you want to clear the entire OTA collection?"):
             return
         with _ota_store_lock:
             _save_collection({})
-        self._populate_collection(nb, search_var.get() if search_var else "")
+        self._populate_collection(
+            nb,
+            search_var.get() if search_var else "",
+            sort_var.get() if sort_var else None,
+            tag_filter_var.get() if tag_filter_var else None,
+        )
 
-    def _populate_collection(self, nb, query=""):
+    def _sort_collection_items(self, items, sort_label):
+        sort_key = None
+        for label, key in self.COLLECTION_SORT_OPTIONS:
+            if label == sort_label:
+                sort_key = key
+                break
+        if sort_key is None:
+            sort_key = "last_seen_desc"
+
+        def _title_of(entry):
+            variants = entry.get("variants", [])
+            t = variants[0].get("title") if variants else ""
+            return (t or "").lower()
+
+        def _size_bytes_of(entry):
+            variants = entry.get("variants", [])
+            size_str = variants[0].get("size") if variants else ""
+            return self._parse_size_to_bytes(size_str)
+
+        if sort_key == "last_seen_desc":
+            return sorted(items, key=lambda kv: kv[1].get("last_seen", ""), reverse=True)
+        elif sort_key == "last_seen_asc":
+            return sorted(items, key=lambda kv: kv[1].get("last_seen", ""))
+        elif sort_key == "first_seen_desc":
+            return sorted(items, key=lambda kv: kv[1].get("first_seen", ""), reverse=True)
+        elif sort_key == "first_seen_asc":
+            return sorted(items, key=lambda kv: kv[1].get("first_seen", ""))
+        elif sort_key == "title_asc":
+            return sorted(items, key=lambda kv: _title_of(kv[1]))
+        elif sort_key == "title_desc":
+            return sorted(items, key=lambda kv: _title_of(kv[1]), reverse=True)
+        elif sort_key == "size_desc":
+            return sorted(items, key=lambda kv: _size_bytes_of(kv[1]), reverse=True)
+        elif sort_key == "size_asc":
+            return sorted(items, key=lambda kv: _size_bytes_of(kv[1]))
+        return sorted(items, key=lambda kv: kv[1].get("last_seen", ""), reverse=True)
+
+    @staticmethod
+    def _parse_size_to_bytes(size_str):
+        if not size_str:
+            return 0
+        m = re.search(r"([\d.,]+)\s*(KiB|MiB|GiB|KB|MB|GB|B)?", size_str, re.IGNORECASE)
+        if not m:
+            return 0
+        try:
+            num = float(m.group(1).replace(",", ""))
+        except ValueError:
+            return 0
+        unit = (m.group(2) or "B").lower()
+        mult = {
+            "b": 1,
+            "kb": 1024, "kib": 1024,
+            "mb": 1024 ** 2, "mib": 1024 ** 2,
+            "gb": 1024 ** 3, "gib": 1024 ** 3,
+        }.get(unit, 1)
+        return num * mult
+
+    def _populate_collection(self, nb, query="", sort_label=None, tag_filter=None):
         for tab_id in nb.tabs():
             nb.forget(tab_id)
 
         coll = _load_collection()
         query = (query or "").strip()
+        sort_label = sort_label or self.COLLECTION_SORT_OPTIONS[0][0]
+        tag_filter = tag_filter or "All tags"
 
         for os_kind in ("android", "chromeos", "xiaomi"):
             bucket = coll.get(os_kind, {})
             filtered = {
                 u: e for u, e in bucket.items()
                 if self._collection_entry_matches_query(u, e, query)
+                and (tag_filter == "All tags" or tag_filter in (e.get("tags", []) or []))
             }
-            frame = ttk.Frame(nb)
-            nb.add(frame, text=f"{self._os_label(os_kind)} ({len(filtered)})")
-            canvas, inner = self._make_scrollable_frame(frame)
 
-            if not filtered:
-                ttk.Label(inner, text="  No entries found.", style='Normal.TLabel').pack(anchor=tk.W, padx=10, pady=10)
-                continue
+            items = self._sort_collection_items(list(filtered.items()), sort_label)
 
-            # Most recently seen first
-            items = sorted(filtered.items(), key=lambda kv: kv[1].get("last_seen", ""), reverse=True)
-            for url, entry in items:
-                self._render_collection_card(inner, url, entry)
+            tab = ttk.Frame(nb)
+            nb.add(tab, text=f"{self._os_label(os_kind)} ({len(items)})")
 
-    def _render_collection_card(self, parent, url, entry):
+            def render_item(parent, kv, os_kind=os_kind, nb=nb, query=query, sort_label=sort_label, tag_filter=tag_filter):
+                url, entry = kv
+                self._render_collection_card(parent, url, entry, os_kind, nb, query, sort_label, tag_filter)
+
+            self._build_paginated_tab(
+                tab, items,
+                page_size=self.COLLECTION_PAGE_SIZE,
+                render_item=render_item,
+            )
+
+    def _render_collection_card(self, parent, url, entry, os_kind=None, nb=None, query="", sort_label=None, tag_filter=None):
         card = ttk.Frame(parent, relief=tk.GROOVE, borderwidth=1, padding=8)
         card.pack(fill=tk.X, padx=8, pady=4)
 
@@ -3622,6 +3820,12 @@ class OTAProberGUI:
                   foreground='#888888').pack(side=tk.LEFT)
         ttk.Label(head, text=f"   🕘 last seen: {entry.get('last_seen', '?')}", font=('Arial', 8),
                   foreground='#888888').pack(side=tk.LEFT)
+
+        if os_kind is not None:
+            ttk.Button(
+                head, text="🏷 Edit tags", width=12,
+                command=lambda: self._edit_collection_tags(os_kind, url, entry, nb, query, sort_label, tag_filter)
+            ).pack(side=tk.RIGHT)
 
         variants = entry.get("variants", [])
 
@@ -3705,6 +3909,17 @@ class OTAProberGUI:
             ttk.Label(card, text=f"🌐 Locales: {loc_text}", font=('Arial', 8),
                       foreground='#888888', wraplength=880, justify=tk.LEFT).pack(anchor=tk.W, pady=(2, 0))
 
+        tags = entry.get("tags", []) or []
+        if tags:
+            tags_frame = ttk.Frame(card)
+            tags_frame.pack(anchor=tk.W, pady=(4, 0), fill=tk.X)
+            ttk.Label(tags_frame, text="🏷", font=('Arial', 8), foreground='#888888').pack(side=tk.LEFT, padx=(0, 4))
+            for t in tags:
+                tk.Label(
+                    tags_frame, text=t, font=('Arial', 8, 'bold'),
+                    fg='#ffffff', bg='#4a90d9', padx=6, pady=1
+                ).pack(side=tk.LEFT, padx=(0, 4))
+
         fingerprints = entry.get("fingerprints", [])
         if fingerprints:
             fp_frame = ttk.Frame(card)
@@ -3736,6 +3951,50 @@ class OTAProberGUI:
 
                 toggle_btn.config(command=_toggle_fp)
                 toggle_btn.pack(anchor=tk.W)
+
+    def _edit_collection_tags(self, os_kind, url, entry, nb, query, sort_label, tag_filter):
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Edit tags")
+        dlg.geometry("480x180")
+        dlg.configure(bg=self.APP_BG)
+        dlg.transient(self.root)
+        dlg.grab_set()
+
+        ttk.Label(dlg, text=url, font=('Courier', 8), foreground='#666666',
+                  wraplength=440, justify=tk.LEFT).pack(anchor=tk.W, padx=12, pady=(12, 4))
+
+        ttk.Label(dlg, text="Tags:", style='Normal.TLabel').pack(anchor=tk.W, padx=12, pady=(6, 2))
+
+        current_tags = ", ".join(entry.get("tags", []) or [])
+        tags_var = tk.StringVar(value=current_tags)
+        entry_box = ttk.Entry(dlg, textvariable=tags_var, width=55)
+        entry_box.pack(fill=tk.X, padx=12)
+        entry_box.focus_set()
+        entry_box.icursor(tk.END)
+
+        all_tags = get_all_collection_tags(_load_collection())
+        if all_tags:
+            hint = "Available tags: " + ", ".join(all_tags[:20])
+            if len(all_tags) > 20:
+                hint += f" (+{len(all_tags) - 20} more)"
+            ttk.Label(dlg, text=hint, font=('Arial', 8), foreground='#888888',
+                      wraplength=440, justify=tk.LEFT).pack(anchor=tk.W, padx=12, pady=(6, 0))
+
+        btn_row = ttk.Frame(dlg)
+        btn_row.pack(fill=tk.X, padx=12, pady=12, side=tk.BOTTOM)
+
+        def _save():
+            raw = tags_var.get()
+            tags = [t.strip() for t in raw.split(",") if t.strip()]
+            set_collection_tags(os_kind, url, tags)
+            dlg.destroy()
+            if hasattr(self, "_collection_tag_filter_combo") and self._collection_tag_filter_combo.winfo_exists():
+                self._collection_tag_filter_combo.config(values=["All tags"] + get_all_collection_tags(_load_collection()))
+            self._populate_collection(nb, query, sort_label, tag_filter)
+
+        ttk.Button(btn_row, text="Save", command=_save).pack(side=tk.RIGHT, padx=(6, 0))
+        ttk.Button(btn_row, text="Cancel", command=dlg.destroy).pack(side=tk.RIGHT)
+        entry_box.bind('<Return>', lambda e: _save())
 
     def on_clear_click(self):
         self.output_text.delete(1.0, tk.END)
