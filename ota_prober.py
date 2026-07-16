@@ -6816,12 +6816,8 @@ def probe_alternative_filenames(url: str, last_modified: str,
         return out
 
     # For a bare sha1.zip-style URL there's no naming-scheme hint in the
-    # filename itself, so we fall back to the Last-Modified date to decide
-    # whether it's worth brute-forcing the full legacy pattern set.
-    if not last_modified or not last_modified.strip().startswith(LEGACY_LASTMOD_PREFIX):
-        out['reason'] = f"Last-Modified doesn't match legacy date ({LEGACY_LASTMOD_PREFIX})"
-        return out
-
+    # filename itself. The Last-Modified date check has been removed —
+    # we now always attempt to brute-force the full legacy pattern set.
     post_build_id, device = _build_id_from_fingerprint(post_build_fingerprint) if post_build_fingerprint else (None, None)
     pre_build_id, _ = _build_id_from_fingerprint(pre_build_fingerprint) if pre_build_fingerprint else (None, None)
 
