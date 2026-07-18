@@ -840,6 +840,9 @@ class OTAProberGUI:
         self._brute_log_buffer = []
         self._brute_log_window = None
         self._brute_log_text = None
+        self._brute_log_lock = threading.Lock()
+        self._brute_log_pending = []
+        self._brute_log_poll_scheduled = False
 
         # Підписка на зміну вкладки для приховування параметрів
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
@@ -986,6 +989,11 @@ class OTAProberGUI:
 
         self.history_button = ttk.Button(history_frame, text="🕘 History", command=self.open_history_window)
         self.history_button.pack(side=tk.RIGHT, padx=(6, 0))
+
+        self.additional_features_button = ttk.Button(
+            history_frame, text="🧩 Additional Features",
+            command=self.open_additional_features_window)
+        self.additional_features_button.pack(side=tk.RIGHT, padx=(6, 0))
 
         self.cros_board_label = ttk.Label(mode_frame, text="Board preset:", style='Normal.TLabel')
         self.cros_board_label.grid(row=0, column=3, sticky=tk.W, padx=(20, 5))
@@ -2564,6 +2572,9 @@ class OTAProberGUI:
         self._brute_running = False
 
         self._brute_log_buffer = []
+        self._brute_log_lock = threading.Lock()
+        self._brute_log_pending = []
+        self._brute_log_poll_scheduled = False
         self._set_brute_os_mode()
 
     # ── Bruteforce log window ─────────────────────────────────────────────
@@ -2606,15 +2617,68 @@ class OTAProberGUI:
             self._brute_log_text = None
 
     def _brute_log(self, msg, tag='info'):
-        self._brute_log_buffer.append((msg, tag))
-        if self._brute_log_text and self._brute_log_window and self._brute_log_window.winfo_exists():
-            self._brute_log_text.config(state=tk.NORMAL)
-            self._brute_log_text.insert(tk.END, msg + '\n', tag)
-            self._brute_log_text.see(tk.END)
-            self._brute_log_text.config(state=tk.DISABLED)
+        """Thread-safe single-line log (see _brute_log_block for
+        multi-line entries that must stay together)."""
+        self._brute_log_block([(msg, tag)])
+
+    def _brute_log_block(self, lines):
+        """
+        Thread-safe, and — critically — atomic across multiple lines.
+
+        Worker threads log "found OTA" entries as several lines
+        (header, Fingerprint, URL, Title, Description, Size, ...).
+        Logging each line with a separate _brute_log() call meant each
+        line was its own buffer entry, so with many workers running
+        concurrently their individual lines got interleaved with each
+        other in the output (one worker's Fingerprint line landing
+        between another worker's header and URL lines, etc).
+
+        This method takes the whole set of lines for one log entry and
+        appends them to the buffer as a single contiguous chunk while
+        holding the lock, so no other thread's lines can be inserted in
+        between. `lines` is a list of (msg, tag) tuples.
+        """
+        with self._brute_log_lock:
+            self._brute_log_buffer.extend(lines)
+            self._brute_log_pending.extend(lines)
+        if not self._brute_log_poll_scheduled:
+            self._brute_log_poll_scheduled = True
+            self.root.after(0, self._brute_flush_log)
+
+    def _brute_flush_log(self):
+        """Runs on the main thread only. Drains pending log lines and
+        writes them to the Text widget in order, then reschedules
+        itself while there's still an active bruteforce run or pending
+        lines to flush."""
+        pending = None
+        with self._brute_log_lock:
+            if self._brute_log_pending:
+                pending = self._brute_log_pending
+                self._brute_log_pending = []
+            still_needed = bool(self._brute_log_pending) or self._brute_running
+            if not pending and not still_needed:
+                self._brute_log_poll_scheduled = False
+
+        if pending and self._brute_log_text and self._brute_log_window and self._brute_log_window.winfo_exists():
+            try:
+                self._brute_log_text.config(state=tk.NORMAL)
+                for msg, tag in pending:
+                    self._brute_log_text.insert(tk.END, msg + '\n', tag)
+                self._brute_log_text.see(tk.END)
+                self._brute_log_text.config(state=tk.DISABLED)
+            except Exception:
+                pass
+
+        if self._brute_running or pending:
+            self._brute_log_poll_scheduled = True
+            self.root.after(100, self._brute_flush_log)
+        else:
+            self._brute_log_poll_scheduled = False
 
     def _brute_clear_log(self):
-        self._brute_log_buffer.clear()
+        with self._brute_log_lock:
+            self._brute_log_buffer.clear()
+            self._brute_log_pending.clear()
         if self._brute_log_text and self._brute_log_window and self._brute_log_window.winfo_exists():
             self._brute_log_text.config(state=tk.NORMAL)
             self._brute_log_text.delete(1.0, tk.END)
@@ -3253,17 +3317,17 @@ class OTAProberGUI:
         # Log the result
         if is_new:
             local_count = len(self._brute_found_data)
-            self._brute_log(f"", 'found')
-            self._brute_log(f"  ★ NEW #{local_count}  {label}", 'found')
-            self._brute_log(f"    Fingerprint : {fp}", 'found')
-            self._brute_log(f"    URL         : {url}", 'found')
+            block = [("", 'found'), (f"  ★ NEW #{local_count}  {label}", 'found'),
+                     (f"    Fingerprint : {fp}", 'found'),
+                     (f"    URL         : {url}", 'found')]
             if title:
-                self._brute_log(f"    Title       : {title}", 'found')
+                block.append((f"    Title       : {title}", 'found'))
             if desc:
-                self._brute_log(f"    Description : {desc[:80]}{'...' if len(desc)>80 else ''}", 'found')
+                block.append((f"    Description : {desc[:80]}{'...' if len(desc)>80 else ''}", 'found'))
             if size:
-                self._brute_log(f"    Size        : {size}", 'found')
-            self._brute_log(f"", 'found')
+                block.append((f"    Size        : {size}", 'found'))
+            block.append(("", 'found'))
+            self._brute_log_block(block)
         elif is_changed:
             # Determine what changed for a meaningful message
             # Compare with any other metadata set for this URL
@@ -3278,17 +3342,17 @@ class OTAProberGUI:
             else:
                 change_msg = "OTA metadata updated (UPDATED)"
             local_count = len(self._brute_found_data)
-            self._brute_log(f"", 'changed')
-            self._brute_log(f"  ⚡ {change_msg}  {label}", 'changed')
-            self._brute_log(f"    Fingerprint : {fp}", 'changed')
-            self._brute_log(f"    URL         : {url}", 'changed')
+            block = [("", 'changed'), (f"  ⚡ {change_msg}  {label}", 'changed'),
+                     (f"    Fingerprint : {fp}", 'changed'),
+                     (f"    URL         : {url}", 'changed')]
             if title:
-                self._brute_log(f"    Title       : {title}", 'changed')
+                block.append((f"    Title       : {title}", 'changed'))
             if desc:
-                self._brute_log(f"    Description : {desc[:80]}{'...' if len(desc)>80 else ''}", 'changed')
+                block.append((f"    Description : {desc[:80]}{'...' if len(desc)>80 else ''}", 'changed'))
             if size:
-                self._brute_log(f"    Size        : {size}", 'changed')
-            self._brute_log(f"", 'changed')
+                block.append((f"    Size        : {size}", 'changed'))
+            block.append(("", 'changed'))
+            self._brute_log_block(block)
         else:
             return  # should not happen
 
@@ -3475,6 +3539,361 @@ class OTAProberGUI:
             " ".join(entry.get("fingerprints", []) or []),
         ]).lower()
         return q in haystack
+
+    # ── Additional Features / Scan URLs (batch metadata -> global.txt) ──
+
+    def open_additional_features_window(self):
+        win = tk.Toplevel(self.root)
+        win.title("Additional Features")
+        win.geometry("620x480")
+        win.configure(bg=self.APP_BG)
+
+        top = ttk.Frame(win, padding=12)
+        top.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(top, text="Additional Features", style='Header.TLabel').pack(anchor=tk.W, pady=(0, 10))
+
+        desc = ttk.Label(
+            top,
+            text=("Scan URLs: import a .txt file containing a list of OTA links "
+                  "(one per line). The app will check the metadata of every link "
+                  "and write post-build / pre-build info to global.txt."),
+            style='Normal.TLabel', wraplength=580, justify=tk.LEFT)
+        desc.pack(anchor=tk.W, pady=(0, 10))
+
+        options_row = ttk.Frame(top)
+        options_row.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(options_row, text="Parallel workers:", style='Normal.TLabel').pack(side=tk.LEFT)
+        self.scan_urls_workers_var = tk.IntVar(value=1)
+        workers_spin = ttk.Spinbox(options_row, from_=1, to=32, width=5,
+                                    textvariable=self.scan_urls_workers_var)
+        workers_spin.pack(side=tk.LEFT, padx=(8, 0))
+
+        ttk.Button(options_row, text="🔍 Scan URLs", command=self.on_scan_urls_click).pack(side=tk.LEFT, padx=(20, 0))
+
+        ttk.Separator(top, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=12)
+
+        self.scan_urls_status_var = tk.StringVar(value="Ready.")
+        ttk.Label(top, textvariable=self.scan_urls_status_var, style='Normal.TLabel',
+                  wraplength=580, justify=tk.LEFT).pack(anchor=tk.W, pady=(0, 8))
+
+        log_frame = ttk.Frame(top)
+        log_frame.pack(fill=tk.BOTH, expand=True)
+        self.scan_urls_log = scrolledtext.ScrolledText(log_frame, height=14, wrap=tk.WORD)
+        self.scan_urls_log.pack(fill=tk.BOTH, expand=True)
+        self.scan_urls_log.configure(state=tk.DISABLED)
+
+        btn_row = ttk.Frame(top)
+        btn_row.pack(fill=tk.X, pady=(8, 0))
+        ttk.Button(btn_row, text="📂 Open global.txt",
+                   command=self._open_global_txt).pack(side=tk.LEFT)
+        ttk.Button(btn_row, text="Close", command=win.destroy).pack(side=tk.RIGHT)
+
+        self._additional_features_win = win
+
+    def _scan_urls_log_append(self, msg):
+        try:
+            self.scan_urls_log.configure(state=tk.NORMAL)
+            self.scan_urls_log.insert(tk.END, msg + "\n")
+            self.scan_urls_log.see(tk.END)
+            self.scan_urls_log.configure(state=tk.DISABLED)
+        except Exception:
+            pass
+
+    def _global_txt_path(self):
+        try:
+            base_dir = _get_storage_dir()
+        except Exception:
+            base_dir = os.getcwd()
+        return os.path.join(base_dir, "global.txt")
+
+    def _open_global_txt(self):
+        path = self._global_txt_path()
+        try:
+            if not os.path.isfile(path):
+                open(path, "a", encoding="utf-8").close()
+            if sys.platform.startswith("win"):
+                os.startfile(path)
+            elif sys.platform == "darwin":
+                os.system(f'open "{path}"')
+            else:
+                os.system(f'xdg-open "{path}"')
+        except Exception as exc:
+            messagebox.showerror("global.txt", f"Failed to open file:\n{exc}")
+
+    def on_scan_urls_click(self):
+        txt_path = filedialog.askopenfilename(
+            title="Select a .txt file containing links",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+        )
+        if not txt_path:
+            return
+
+        try:
+            with open(txt_path, "r", encoding="utf-8", errors="replace") as f:
+                raw_lines = f.readlines()
+        except Exception as exc:
+            messagebox.showerror("Scan URLs", f"Failed to read file:\n{exc}")
+            return
+
+        urls = []
+        for line in raw_lines:
+            u = line.strip()
+            if not u or u.startswith('#'):
+                continue
+            urls.append(u)
+
+        if not urls:
+            messagebox.showinfo("Scan URLs", "No links were found in the file.")
+            return
+
+        try:
+            worker_count = max(1, min(32, int(self.scan_urls_workers_var.get())))
+        except Exception:
+            worker_count = 1
+
+        self.scan_urls_log.configure(state=tk.NORMAL)
+        self.scan_urls_log.delete('1.0', tk.END)
+        self.scan_urls_log.configure(state=tk.DISABLED)
+        self.scan_urls_status_var.set(
+            f"Found {len(urls)} link(s). Starting scan with {worker_count} worker(s)…")
+
+        threading.Thread(target=self._scan_urls_dispatch, args=(urls, worker_count), daemon=True).start()
+
+    def _scan_urls_dispatch(self, urls, worker_count):
+        """
+        Splits the URL list across `worker_count` worker threads (each
+        worker processes one URL at a time, pulled from a shared queue),
+        so the user can choose how many URLs are checked in parallel —
+        including exactly 1 for fully sequential scanning.
+
+        Every worker writes to the same global.txt file, so a lock is
+        used around the file write to make sure entries never get
+        interleaved/overwritten, no matter how many workers run
+        concurrently.
+
+        IMPORTANT (UI responsiveness): worker threads never touch Tk
+        widgets directly and never schedule a root.after() call per
+        message. fetch_payload_metadata's status_cb can fire dozens of
+        times per URL (once per HTTP hop/step), so with many workers
+        that would flood Tk's single-threaded event queue with
+        thousands of after() callbacks per second and freeze the whole
+        window. Instead, workers only append text to a thread-safe
+        buffer; a single periodic root.after() poller (started on the
+        main thread) drains that buffer and updates the log/status a
+        few times per second. This keeps the UI responsive regardless
+        of how many workers are running.
+        """
+        total = len(urls)
+        work_queue = queue.Queue()
+        for idx, url in enumerate(urls, start=1):
+            work_queue.put((idx, url))
+
+        global_txt_path = self._global_txt_path()
+        file_lock = threading.Lock()
+        counters = {'ok': 0, 'fail': 0, 'done': 0}
+        counters_lock = threading.Lock()
+
+        # Thread-safe buffers. Workers only push into these; only the
+        # main-thread poller (_scan_urls_flush_ui) reads/clears them.
+        self._scan_urls_pending_log = []
+        self._scan_urls_pending_log_lock = threading.Lock()
+        self._scan_urls_latest_status = [None]
+        self._scan_urls_active = True
+
+        try:
+            out_f = open(global_txt_path, "a", encoding="utf-8")
+        except Exception as exc:
+            self._scan_urls_queue_log(f"[Error] Failed to open {global_txt_path}: {exc}")
+            self._scan_urls_active = False
+            self.root.after(0, self.scan_urls_status_var.set, f"Failed to open global.txt: {exc}")
+            return
+
+        def buffer_log(msg):
+            with self._scan_urls_pending_log_lock:
+                self._scan_urls_pending_log.append(msg)
+
+        def buffer_status(msg):
+            self._scan_urls_latest_status[0] = msg
+
+        RETRY_MAX_ATTEMPTS = 3
+        RETRY_DELAY_SECONDS = 2.0
+
+        def _is_404_error(exc_or_msg):
+            """Detect a 'not found' condition so it's never retried —
+            retrying a 404 just wastes time since the file genuinely
+            isn't there. Handles both urllib.error.HTTPError (has
+            .code) and plain error strings/messages from
+            fetch_payload_metadata."""
+            code = getattr(exc_or_msg, 'code', None)
+            if code == 404:
+                return True
+            text = str(exc_or_msg)
+            return '404' in text
+
+        def worker():
+            while True:
+                try:
+                    idx, url = work_queue.get_nowait()
+                except queue.Empty:
+                    return
+
+                filename = urlparse(url).path.rsplit('/', 1)[-1] or url
+                buffer_log(f"[{idx}/{total}] {filename} — reading metadata…")
+
+                post_build = ""
+                pre_build = ""
+                error_msg = ""
+                is_404 = False
+
+                attempt = 1
+                while True:
+                    post_build = ""
+                    pre_build = ""
+                    error_msg = ""
+                    try:
+                        status_cb = lambda m, i=idx, t=total: buffer_status(f"[{i}/{t}] {m}")
+                        meta = fetch_payload_metadata(url, status_cb=status_cb, timeout=30)
+                        fields = (meta or {}).get('fields', {}) or {}
+                        post_build = fields.get('post-build', '') or ''
+                        pre_build = fields.get('pre-build', '') or ''
+                        if not meta.get('found'):
+                            error_msg = meta.get('error') or "metadata not found"
+                    except Exception as exc:
+                        error_msg = str(exc)
+                        if _is_404_error(exc):
+                            is_404 = True
+
+                    if post_build or pre_build:
+                        break  # success, no need to retry
+
+                    if error_msg and _is_404_error(error_msg):
+                        is_404 = True
+
+                    if is_404:
+                        # Never retry a genuine 404 — the file isn't there.
+                        break
+
+                    if not error_msg:
+                        # Nothing found but no explicit error either;
+                        # nothing to gain from retrying.
+                        break
+
+                    if attempt >= RETRY_MAX_ATTEMPTS:
+                        break
+
+                    buffer_log(f"    ⟳ [{idx}/{total}] {filename} — attempt {attempt} failed "
+                               f"({error_msg}), retrying…")
+                    time.sleep(RETRY_DELAY_SECONDS)
+                    attempt += 1
+
+                if attempt > 1 and (post_build or pre_build):
+                    buffer_log(f"    ↻ [{idx}/{total}] {filename} — succeeded on attempt {attempt}")
+
+                entry_lines = [
+                    f"filename: {filename}\n",
+                    f"post-build: {post_build}\n",
+                    f"pre-build: {pre_build}\n",
+                ]
+                if error_msg:
+                    entry_lines.append(f"error: {error_msg}\n")
+                entry_lines.append(f"url: {url}\n")
+                entry_lines.append("\n")
+
+                with file_lock:
+                    try:
+                        out_f.write("".join(entry_lines))
+                        out_f.flush()
+                    except Exception:
+                        pass
+
+                with counters_lock:
+                    if post_build or pre_build:
+                        counters['ok'] += 1
+                    else:
+                        counters['fail'] += 1
+                    counters['done'] += 1
+                    done_snapshot = counters['done']
+
+                if post_build or pre_build:
+                    buffer_log(f"    ✔ [{idx}/{total}] post-build: {post_build or '—'} | pre-build: {pre_build or '—'}")
+                else:
+                    buffer_log(f"    ✘ [{idx}/{total}] post-build/pre-build not found"
+                               + (f" ({error_msg})" if error_msg else ""))
+
+                buffer_status(f"Progress: {done_snapshot}/{total} link(s) processed…")
+
+                work_queue.task_done()
+
+        # Start the main-thread poller that periodically drains the
+        # buffers into the actual Tk widgets — this is the only place
+        # that touches self.scan_urls_log / self.scan_urls_status_var.
+        self.root.after(100, self._scan_urls_flush_ui)
+
+        threads = []
+        for _ in range(max(1, min(worker_count, total))):
+            t = threading.Thread(target=worker, daemon=True)
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+
+        try:
+            out_f.close()
+        except Exception:
+            pass
+
+        summary = (f"Done: {counters['ok']} succeeded, {counters['fail']} with no result. "
+                   f"Written to global.txt ({global_txt_path})")
+        buffer_log(summary)
+        buffer_status(summary)
+        self._scan_urls_active = False
+
+    def _scan_urls_flush_ui(self):
+        """
+        Runs on the main thread via root.after(). Drains whatever the
+        worker threads have buffered so far and applies it to the Tk
+        widgets in one batch, then reschedules itself while a scan is
+        still active. This bounds UI updates to a fixed rate (~10/sec)
+        no matter how many worker threads are running.
+        """
+        pending = None
+        try:
+            with self._scan_urls_pending_log_lock:
+                if self._scan_urls_pending_log:
+                    pending = self._scan_urls_pending_log
+                    self._scan_urls_pending_log = []
+        except Exception:
+            pending = None
+
+        if pending:
+            try:
+                self.scan_urls_log.configure(state=tk.NORMAL)
+                self.scan_urls_log.insert(tk.END, "\n".join(pending) + "\n")
+                self.scan_urls_log.see(tk.END)
+                self.scan_urls_log.configure(state=tk.DISABLED)
+            except Exception:
+                pass
+
+        latest_status = self._scan_urls_latest_status[0]
+        if latest_status is not None:
+            try:
+                self.scan_urls_status_var.set(latest_status)
+            except Exception:
+                pass
+            self._scan_urls_latest_status[0] = None
+
+        if getattr(self, '_scan_urls_active', False):
+            self.root.after(100, self._scan_urls_flush_ui)
+
+    def _scan_urls_queue_log(self, msg):
+        try:
+            with self._scan_urls_pending_log_lock:
+                self._scan_urls_pending_log.append(msg)
+        except Exception:
+            pass
 
     def open_history_window(self):
         win = tk.Toplevel(self.root)
@@ -6055,6 +6474,124 @@ def _find_local_metadata_header(data: bytes, offset: int = 0):
     return None
 
 
+def _fetch_metadata_precise_via_eocd(_get_range, _s, total_size, out, errors):
+    """
+    Fast path: fetch only the End Of Central Directory record (tiny, tail of
+    the file), use it to locate the central directory precisely, fetch just
+    the central directory (typically a few KB, not megabytes), locate the
+    META-INF/com/android/metadata entry in it, then fetch only that entry's
+    bytes and decompress/parse them.
+
+    Returns True if metadata was found and `out` was populated (caller
+    should return immediately). Returns False if any step failed or the
+    entry wasn't found, in which case the caller should fall back to the
+    existing tail/head chunk strategy. Never raises.
+    """
+    try:
+        if total_size <= 0:
+            return False
+
+        # EOCD is 22 bytes minimum + up to 65535 bytes of comment. Fetch a
+        # generous-but-tiny window from the end to reliably contain it.
+        eocd_window = min(total_size, 66 * 1024)
+        eocd_start = total_size - eocd_window
+        _s("Fetching end-of-central-directory record…")
+        eocd_blob = _get_range(f'bytes={eocd_start}-{total_size - 1}')
+        out['bytes_scanned'] += len(eocd_blob)
+
+        eocd_pos = eocd_blob.rfind(EOCD_SIG)
+        if eocd_pos == -1:
+            errors.append("EOCD signature not found in tail window")
+            return False
+
+        try:
+            cd_size = struct.unpack('<I', eocd_blob[eocd_pos + 12:eocd_pos + 16])[0]
+            cd_offset = struct.unpack('<I', eocd_blob[eocd_pos + 16:eocd_pos + 20])[0]
+        except struct.error as e:
+            errors.append(f"EOCD parse failed: {e}")
+            return False
+
+        if cd_size <= 0 or cd_offset < 0 or cd_offset + cd_size > total_size:
+            errors.append("EOCD central directory fields look invalid")
+            return False
+
+        # Fetch only the central directory itself (usually just KB).
+        _s(f"Fetching central directory ({cd_size:,} bytes)…")
+        cd_blob = _get_range(f'bytes={cd_offset}-{cd_offset + cd_size - 1}')
+        out['bytes_scanned'] += len(cd_blob)
+
+        # _find_zip_metadata_entry expects (blob, blob_offset_in_file) and
+        # internally re-finds EOCD to locate the CD within the blob. Since
+        # we're handing it *only* the CD (no EOCD), build a minimal fake
+        # tail: CD bytes followed by a synthetic EOCD record pointing at
+        # offset 0 of this blob.
+        synthetic_eocd = (
+            EOCD_SIG +
+            b'\x00\x00\x00\x00' +           # disk numbers
+            b'\x00\x00\x00\x00' +           # entry counts (unused by parser)
+            struct.pack('<I', cd_size) +
+            struct.pack('<I', 0) +          # cd_offset relative to our blob
+            b'\x00\x00'                     # comment length
+        )
+        fake_blob = cd_blob + synthetic_eocd
+        entry = _find_zip_metadata_entry(fake_blob, 0)
+        if not entry:
+            errors.append("META-INF/com/android/metadata not found in central directory (EOCD fast path)")
+            return False
+
+        local_header_offset, compressed_size, compression_method, name = entry
+
+        _s(f"Fetching {name} entry ({compressed_size} bytes)…")
+        lh_blob = _get_range(f'bytes={local_header_offset}-{local_header_offset + 4096}')
+        out['bytes_scanned'] += len(lh_blob)
+
+        if lh_blob[0:4] != LFH_SIG:
+            errors.append("Local file header signature mismatch (EOCD fast path)")
+            return False
+
+        name_len = struct.unpack('<H', lh_blob[26:28])[0]
+        extra_len = struct.unpack('<H', lh_blob[28:30])[0]
+        data_start_in_lh_blob = 30 + name_len + extra_len
+
+        if data_start_in_lh_blob + compressed_size <= len(lh_blob):
+            entry_data = lh_blob[data_start_in_lh_blob:data_start_in_lh_blob + compressed_size]
+        else:
+            abs_data_start = local_header_offset + data_start_in_lh_blob
+            entry_data = _get_range(f'bytes={abs_data_start}-{abs_data_start + compressed_size - 1}')
+            out['bytes_scanned'] += len(entry_data)
+
+        if compression_method == 0:
+            plain = entry_data
+        elif compression_method == 8:
+            try:
+                plain = zlib.decompress(entry_data, -15)
+            except Exception as e:
+                errors.append(f"Inflate failed (EOCD fast path): {e}")
+                return False
+        else:
+            errors.append(f"Unsupported compression method {compression_method} (EOCD fast path)")
+            return False
+
+        if not plain:
+            return False
+
+        fields = _parse_all_metadata_lines(plain, PAYLOAD_METADATA_PREFIXES)
+        if not fields:
+            errors.append(
+                "Metadata entry decoded but no known keys matched (EOCD fast path, "
+                f"first 200 bytes: {plain[:200]!r})")
+            return False
+
+        out['found'] = True
+        out['fields'] = fields
+        out['source'] = f'ZIP entry {name} (method={compression_method}, EOCD fast path)'
+        return True
+
+    except Exception as e:
+        errors.append(f"EOCD fast path failed: {e}")
+        return False
+
+
 def _fetch_payload_metadata_inner(url: str, status_cb=None, timeout: int = 30,
                             chunk_bytes: int = 2 * 1024 * 1024,
                             return_raw_tail: bool = False,
@@ -6126,6 +6663,17 @@ def _fetch_payload_metadata_inner(url: str, status_cb=None, timeout: int = 30,
         total_size = _head_size()
     except Exception as e:
         errors.append(f"HEAD size lookup failed: {e}")
+
+    # Fast path: try to locate and fetch the metadata entry precisely via
+    # the ZIP's End Of Central Directory record, so we only download the
+    # tiny EOCD + central directory + the metadata entry itself, instead of
+    # blindly pulling a multi-MB chunk. If this doesn't pan out for any
+    # reason, we fall straight through to the existing tail/head strategy
+    # below (nothing about it changes).
+    if _fetch_metadata_precise_via_eocd(_get_range, _s, total_size, out, errors):
+        if return_raw_tail:
+            return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
+        return out
 
     if total_size > 0:
         try:
