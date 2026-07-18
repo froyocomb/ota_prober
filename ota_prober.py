@@ -25,6 +25,7 @@ from urllib.parse import urlparse, urlencode
 import struct
 import zlib
 import base64
+import concurrent.futures
 try:
     from Crypto.Cipher import AES
     from Crypto.Util.Padding import pad, unpad
@@ -1885,6 +1886,20 @@ class OTAProberGUI:
 
             self._httpinfo_last_result = None
 
+            # Both the metadata tab and the alt-filenames tab need the
+            # same payload metadata (pre-build/post-build fingerprints).
+            # Previously each worker called fetch_payload_metadata()
+            # independently and in parallel, which meant two full network
+            # fetches of the same ZIP tail happening at once — on a slow
+            # or cold connection one of them could time out or simply
+            # lose the race, leaving altnames_worker with empty
+            # fingerprints (device undetermined) on the very first run.
+            # Sharing one result via this holder + event means
+            # altnames_worker always sees the real metadata, however long
+            # the fetch takes.
+            self._httpinfo_shared_meta_event = threading.Event()
+            self._httpinfo_shared_meta_result = {}
+
             threading.Thread(target=self._httpinfo_metadata_worker, args=(url,), daemon=True).start()
             threading.Thread(target=self._httpinfo_altnames_worker, args=(url,), daemon=True).start()
             # Runs concurrently in the background; the general/headers/etc.
@@ -1929,6 +1944,17 @@ class OTAProberGUI:
             meta = result['metadata']
             self.root.after(0, self._httpinfo_display_metadata, meta)
 
+            # Publish for altnames_worker (if it's waiting on the same
+            # fetch) before doing any further local processing, so the
+            # other thread can proceed as soon as the fingerprints are
+            # available rather than waiting for zip-tree parsing too.
+            shared_event = getattr(self, '_httpinfo_shared_meta_event', None)
+            shared_holder = getattr(self, '_httpinfo_shared_meta_result', None)
+            if shared_holder is not None:
+                shared_holder['meta'] = meta
+            if shared_event is not None:
+                shared_event.set()
+
             # Зберігаємо кеш для ZIP Tree
             if result.get('tail_data'):
                 self.zip_tree_cache['url'] = url
@@ -1951,6 +1977,12 @@ class OTAProberGUI:
         except Exception as exc:
             self.root.after(0, self.hi_metadata_status_var.set, f"Metadata error: {exc}")
         finally:
+            # Make sure altnames_worker is never left waiting forever if
+            # the metadata fetch failed before reaching the publish step
+            # above.
+            shared_event = getattr(self, '_httpinfo_shared_meta_event', None)
+            if shared_event is not None:
+                shared_event.set()
             self.root.after(0, self._httpinfo_done)
 
     def _parse_zip_entries_from_tail(self, tail_data, tail_offset, total_size):
@@ -2021,11 +2053,32 @@ class OTAProberGUI:
         return entries
 
     def _httpinfo_altnames_worker(self, url):
+        # Reuse the metadata fetched by _httpinfo_metadata_worker instead of
+        # independently re-fetching the same ZIP over the network in
+        # parallel. Previously both workers called fetch_payload_metadata()
+        # at the same time; on a cold/slow connection this race could leave
+        # this worker with an empty meta dict (device/fingerprints
+        # undetermined), which is why the very first alt-filenames check
+        # after starting the app would come back with nothing while a
+        # second attempt (with things already warmed up / cached) worked.
         meta = {}
-        try:
-            meta = fetch_payload_metadata(url)  # без raw tail
-        except Exception:
-            pass
+        shared_event = getattr(self, '_httpinfo_shared_meta_event', None)
+        shared_holder = getattr(self, '_httpinfo_shared_meta_result', None)
+        if shared_event is not None:
+            # Wait for metadata_worker to publish its result. Generous
+            # timeout as a safety net only — normally this returns as soon
+            # as the other thread finishes its fetch.
+            shared_event.wait(timeout=45)
+            if shared_holder is not None:
+                meta = shared_holder.get('meta') or {}
+        if not meta:
+            # Fallback for cases where this worker is invoked on its own
+            # (no sibling metadata_worker running), e.g. programmatic
+            # reuse — fetch directly rather than blocking forever.
+            try:
+                meta = fetch_payload_metadata(url)  # без raw tail
+            except Exception:
+                meta = {}
 
         last_modified = ''
         for label, val in (self._httpinfo_last_result or {}).get('general', []):
@@ -2072,7 +2125,7 @@ class OTAProberGUI:
 
             merged = {
                 'checked': direct.get('checked') or alt.get('checked'),
-                'reason': direct.get('reason') or alt.get('reason'),
+                'reason': alt.get('reason') or direct.get('reason'),
                 'results': merged_results,
             }
             try:
@@ -2180,7 +2233,7 @@ class OTAProberGUI:
             working.append(candidate_url)
 
         if not working:
-            self.hi_altnames_status_var.set("No working alternative links found.")
+            self.hi_altnames_status_var.set(alt.get('reason') or "No working alternative links found.")
             return
 
         for u in working:
@@ -7107,23 +7160,129 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
 
 LEGACY_LASTMOD_PREFIX = "Mon, 16 May 2016"
 
+# Device-name aliases: the "public" device codename used by Google's OTA
+# servers sometimes differs from the codename found in build fingerprints.
+# Maps fingerprint-device -> OTA-filename-device.
+OTA_DEVICE_ALIASES = {
+    'UNO_sprout': 'sprout-myphone-uno',
+    'Sparkle_V_sprout': 'sprout-karbonn',
+}
+
+
+def _ota_alias_device(device: str) -> str:
+    """Translate a fingerprint device codename into the codename used in
+    OTA filenames, if a known alias exists."""
+    return OTA_DEVICE_ALIASES.get(device, device)
+
+
+def _device_name_candidates_from_url(url: str):
+    """
+    Extract extra device-codename candidates from the OTA URL's own
+    directory path. Google's OTA directories are commonly named
+    'google_<device>_<board>' or similar underscore-joined segments (e.g.
+    '.../ota/google_flounderlte_volantisg/<sha1>.zip'), and the codename
+    actually used inside the OTA filename can be either segment — not
+    necessarily the one matching the build fingerprint's device field.
+    Returns the underscore-split segments (skipping a leading 'google'),
+    plus the whole hyphen-free directory name itself, in path order.
+    """
+    try:
+        path = urlparse(url).path
+        dir_name = path.rsplit('/', 2)[-2] if path.count('/') >= 2 else ''
+    except Exception:
+        dir_name = ''
+    if not dir_name:
+        return []
+    parts = dir_name.split('_')
+    if parts and parts[0].lower() in ('google', 'com'):
+        parts = parts[1:]
+    # Also offer the full remaining string joined back with underscores,
+    # in case the OTA filename actually wants the whole compound name.
+    candidates = list(parts)
+    if len(parts) > 1:
+        candidates.append('_'.join(parts))
+    return candidates
+
+
+def _ota_device_name_candidates(device: str, url: str = None):
+    """
+    Return the list of device-codename spellings worth trying in OTA
+    filenames, in priority order:
+      1. explicit alias from OTA_DEVICE_ALIASES, if one exists
+      2. device-name segments parsed from the URL's own directory path
+         (e.g. 'google_flounderlte_volantisg' -> 'flounderlte', 'volantisg'),
+         since this is frequently what the actual OTA filename uses,
+         sometimes instead of the fingerprint's device field entirely
+      3. the fingerprint's device string as-is
+      4. the same string with underscores stripped (e.g.
+         'flounder_lte' -> 'flounderlte'), since Google's OTA filenames
+         frequently drop underscores that appear in the build
+         fingerprint's device field even though the device otherwise
+         matches exactly.
+    Duplicates are removed while preserving order.
+    """
+    candidates = []
+    aliased = OTA_DEVICE_ALIASES.get(device)
+    if aliased:
+        candidates.append(aliased)
+    if url:
+        candidates.extend(_device_name_candidates_from_url(url))
+    candidates.append(device)
+    if '_' in device:
+        candidates.append(device.replace('_', ''))
+    seen = set()
+    out = []
+    for c in candidates:
+        if c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
+
+
 # Matches the "long form" suffix Google's OTA servers sometimes tack onto
-# the bare sha1, e.g.:
+# the bare sha1, covering all the historically-seen naming schemes:
 #   <sha1>.re_signed-volantis-LRX21R-from-LRX21Q-factory-recovery-ok.zip
 #   <sha1>.signed-bullhead-NRD90M-from-MOB30I.zip
 #   <sha1>.signed-signed-angler-MMB29M-from-LMY48I.abc12345.zip
+#   <sha1>.<sha1>.signed_signed-tetra-LCA43-from-LDZ22D.zip
+#   <sha1>.<sha1>.signed_signed-tetra-LCA43-from-LDZ22D.abc12345.zip
+#   <sha1>.incremental-LMY47M.M001_6-LMY47M.M003_8.zip
+#   <sha1>.<sha1>.incremental-KTU84P.M003_18-LRX21Z.M002_15.zip
+#   <sha1>.KOT49H.M004_5-KTU84P.M003_18.zip
+#   <sha1>.update.zip
+#   <sha1>.signed-sprout-myphone-uno-ota-2280749-omit-oem.zip
+#   <sha1>.signed-takju-JOP40C-from-JZO54K.zip (short sha1 forms too)
+#   <sha1>.loose_ota-signed-shamu-MMB29Q-from-MMB29S.zip
+#   <sha1>.signed-shamu-ota-LVY48E-from-LVY48C-superblock-fix.zip
+#   <sha1>.<short8>-signed-unsigned-shamu-ota-LYZ28E-from-LMY47Z-fullradio-superblock-fix.zip
+#
 # Captured group 1 is the "descriptive" part between the sha1 and the
 # final .zip (without the leading dot / trailing extension), used both to
 # strip it down to a bare sha1.zip candidate, and to recognize/rebuild it
 # from a bare sha1 when the descriptive part is supplied separately.
+#
+# The optional "(?:[0-9a-fA-F]{8,40}\.)?" handles the doubled-sha1-prefix
+# variant seen in the wild (e.g. ff327c...4.ff327c...4.signed_signed-...zip),
+# where the repeated token can be the full sha1 or just its first bytes.
+# The optional "(?:[0-9a-fA-F]{8}-)?" handles the short-hash-dash-joined
+# variant (e.g. ff327c3a-signed-unsigned-...zip), where an 8-char short
+# hash is joined directly to the descriptive part with a dash instead of
+# appearing as its own dot-separated segment.
 _OTA_LONGFORM_SUFFIX_RE = re.compile(
-    r'^([0-9a-fA-F]{40})\.((?:re_)?(?:signed-)+.+)\.zip$'
+    r'^([0-9a-fA-F]{8,40})\.(?:[0-9a-fA-F]{8,40}\.)?(?:[0-9a-fA-F]{8}-)?'
+    r'('
+    r'(?:loose_ota-)?(?:re_)?(?:un)?(?:signed[_-])+.+'  # signed-/re_signed-/Dotasigned-/loose_ota-signed-/signed_signed-/signed-unsigned- ...
+    r'|incremental-.+'                             # incremental-BUILD.Mxxx_y-BUILD.Mxxx_y
+    r'|[A-Za-z0-9]+\.M\d+_\d+-.+'                   # BUILD.Mxxx_y-BUILD.Mxxx_y (no leading "incremental-")
+    r'|update'                                      # plain ".update.zip" suffix
+    r')\.zip$'
 )
 
 
 def _split_ota_longform_filename(fname: str):
-    """If fname looks like '<sha1>.<descriptive-suffix>.zip', return
-    (sha1, descriptive_suffix). Otherwise return (None, None)."""
+    """If fname looks like '<sha1>.<descriptive-suffix>.zip' (optionally
+    with a doubled sha1/short-hash prefix), return (sha1, descriptive_suffix).
+    Otherwise return (None, None)."""
     m = _OTA_LONGFORM_SUFFIX_RE.match(fname)
     if not m:
         return None, None
@@ -7150,14 +7309,41 @@ def _ota_suffix_variants(device_and_builds: str):
     Given the 'device-POSTBUILD-from-PREBUILD[-extra-words]' core of a
     long-form suffix (with any 'signed-'/'re_signed-'/etc. prefix already
     stripped off), generate the common prefix variants seen in the wild:
-    signed-, re_signed-, Dotasigned-, signed-signed-.
+    signed-, re_signed-, Dotasigned-, signed-signed-, signed_signed-,
+    loose_ota-signed-, signed-unsigned-.
     """
     return [
         f"signed-{device_and_builds}",
         f"re_signed-{device_and_builds}",
         f"Dotasigned-{device_and_builds}",
         f"signed-signed-{device_and_builds}",
+        f"signed_signed-{device_and_builds}",
+        f"loose_ota-signed-{device_and_builds}",
+        f"signed-unsigned-{device_and_builds}",
     ]
+
+
+# Parses the '<device>-<POSTBUILD>-from-<PREBUILD>[-extra-words...]' core
+# of a long-form suffix (prefix like 'signed-'/'loose_ota-signed-'/etc.
+# already stripped) back into its device/post-build/pre-build parts, so
+# the full build_alternative_filenames() pattern set can be regenerated
+# from an already-known long-form filename instead of only the smaller
+# fixed set of prefix variants. The optional '-ota-' between device and
+# POSTBUILD (e.g. 'shamu-ota-LYZ28E-from-LMY47Z') is matched separately so
+# it isn't swallowed into the device name.
+_OTA_CORE_PARTS_RE = re.compile(
+    r'^(?P<device>.+?)(?:-ota)?-(?P<post>[A-Za-z0-9]+)-from-(?P<pre>[A-Za-z0-9]+)(?:-.+)?$'
+)
+
+
+def _parse_ota_suffix_core(core: str):
+    """Return (device, post_build_id, pre_build_id) parsed from a
+    'device-POST-from-PRE[-extra]' core string, or (None, None, None) if
+    it doesn't match that shape."""
+    m = _OTA_CORE_PARTS_RE.match(core)
+    if not m:
+        return None, None, None
+    return m.group('device'), m.group('post'), m.group('pre')
 
 
 def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12):
@@ -7195,29 +7381,79 @@ def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12):
         # Remember it for later bare -> long-form lookups.
         OTA_SHA1_SUFFIX_CACHE[sha1.lower()] = suffix
 
+        # Detect whether the *given* filename actually had the doubled
+        # sha1 prefix (sha1.sha1.<suffix>.zip) vs. the plain form
+        # (sha1.<suffix>.zip). _split_ota_longform_filename already
+        # strips the doubled prefix when matching, so `suffix` alone
+        # doesn't tell us which form was given — we need to check the
+        # original filename directly.
+        given_is_doubled = fname.lower().startswith(f"{sha1.lower()}.{sha1.lower()}.")
+
         # Strip whichever known prefix ('re_signed-', 'signed-signed-',
+        # 'signed_signed-', 'loose_ota-signed-', 'signed-unsigned-',
         # 'Dotasigned-', 'signed-') is actually present, to get the bare
         # 'device-POSTBUILD-from-PREBUILD...' core so we can rebuild the
-        # other prefix variants.
+        # other prefix variants. Only applies to the "signed*" family of
+        # suffixes — incremental-/M-format/update suffixes have no prefix
+        # variants to rebuild.
         core = suffix
-        for pfx in ('signed-signed-', 're_signed-', 'Dotasigned-', 'signed-'):
+        is_signed_family = False
+        for pfx in ('loose_ota-signed-', 'signed-signed-', 'signed_signed-',
+                    'signed-unsigned-', 're_signed-', 'Dotasigned-', 'signed-'):
             if core.startswith(pfx):
                 core = core[len(pfx):]
+                is_signed_family = True
                 break
 
+        # The trimmed-down bare sha1.zip candidate always applies — this is
+        # what lets pasting *any* recognized long-form URL find the plain
+        # short link too, regardless of naming scheme (signed/incremental/
+        # update/etc).
         candidates = [f"{sha1}.zip"]
-        for variant_suffix in _ota_suffix_variants(core):
-            if variant_suffix == suffix:
-                continue
-            candidates.append(f"{sha1}.{variant_suffix}.zip")
+        seen_candidates = {candidates[0]}
+
+        if is_signed_family:
+            for variant_suffix in _ota_suffix_variants(core):
+                # Always offer both the plain and doubled-sha1-prefix form
+                # of every variant, skipping only the exact form that was
+                # actually given (same suffix AND same doubling), so the
+                # "other" doubling of the *same* prefix is never silently
+                # dropped just because the suffix text matches.
+                plain_name = f"{sha1}.{variant_suffix}.zip"
+                doubled_name = f"{sha1}.{sha1}.{variant_suffix}.zip"
+
+                if not (variant_suffix == suffix and not given_is_doubled):
+                    if plain_name not in seen_candidates:
+                        seen_candidates.add(plain_name)
+                        candidates.append(plain_name)
+                if not (variant_suffix == suffix and given_is_doubled):
+                    if doubled_name not in seen_candidates:
+                        seen_candidates.add(doubled_name)
+                        candidates.append(doubled_name)
+
+            # Also try to parse the core into device/post-build/pre-build
+            # and, if that succeeds, generate the FULL pattern set (extra
+            # suffixes like -new-timestamp, numeric revision suffixes,
+            # full_radio variants, etc.) the same way the fingerprint-based
+            # probe does — so a long-form URL is checked just as
+            # thoroughly as a bare sha1.zip with known fingerprints.
+            core_device, core_post, core_pre = _parse_ota_suffix_core(core)
+            if core_device and core_post and core_pre:
+                for device_variant in _ota_device_name_candidates(core_device, url=url):
+                    for name in build_alternative_filenames(
+                            sha1, device_variant, core_post, core_pre, None):
+                        if name not in seen_candidates:
+                            seen_candidates.add(name)
+                            candidates.append(name)
 
         _s("Trying short (bare sha1) and alternate long-form variants…")
         out['checked'] = True
         out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
         return out
 
-    # Not long-form: is it a bare sha1.zip?
-    bare_m = re.match(r'^([0-9a-fA-F]{40})\.zip$', fname)
+    # Not long-form: is it a bare sha1.zip (full 40-char or short 8-40 char
+    # hash, as seen with e.g. VQ8PQk_V.zip-style short tokens)?
+    bare_m = re.match(r'^([0-9a-fA-F]{8,40})\.zip$', fname) or re.match(r'^([A-Za-z0-9_]{6,40})\.zip$', fname)
     if not bare_m:
         out['reason'] = "URL filename doesn't look like a bare sha1.zip or a known long-form OTA name"
         return out
@@ -7229,8 +7465,44 @@ def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12):
                           "sha1 in this session — paste the long-form URL once first.")
         return out
 
-    candidates = [f"{sha1}.{known_suffix}.zip"]
-    _s("Trying long (descriptive) form…")
+    # Strip whichever known prefix is present to get the bare
+    # 'device-POSTBUILD-from-PREBUILD...' core, so we can offer every
+    # signed-family prefix variant (not just the one exact suffix that
+    # happened to be remembered), each in both the plain and the
+    # doubled-sha1-prefix form.
+    core = known_suffix
+    is_signed_family = False
+    for pfx in ('loose_ota-signed-', 'signed-signed-', 'signed_signed-',
+                'signed-unsigned-', 're_signed-', 'Dotasigned-', 'signed-'):
+        if core.startswith(pfx):
+            core = core[len(pfx):]
+            is_signed_family = True
+            break
+
+    candidates = [f"{sha1}.{known_suffix}.zip", f"{sha1}.{sha1}.{known_suffix}.zip"]
+
+    if is_signed_family:
+        for variant_suffix in _ota_suffix_variants(core):
+            plain_name = f"{sha1}.{variant_suffix}.zip"
+            doubled_name = f"{sha1}.{sha1}.{variant_suffix}.zip"
+            if plain_name not in candidates:
+                candidates.append(plain_name)
+            if doubled_name not in candidates:
+                candidates.append(doubled_name)
+
+        # Same as the long-form branch above: if the core parses into
+        # device/post-build/pre-build, generate the full pattern set
+        # (extra suffixes, numeric revisions, full_radio variants, etc.)
+        # instead of only the smaller prefix-variant set.
+        core_device, core_post, core_pre = _parse_ota_suffix_core(core)
+        if core_device and core_post and core_pre:
+            for device_variant in _ota_device_name_candidates(core_device, url=url):
+                for name in build_alternative_filenames(
+                        sha1, device_variant, core_post, core_pre, None):
+                    if name not in candidates:
+                        candidates.append(name)
+
+    _s("Trying long (descriptive) form, including doubled-sha1 variant…")
     out['checked'] = True
     out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
     return out
@@ -7262,9 +7534,18 @@ def _extract_sha1_from_url(url: str):
 def build_alternative_filenames(sha1: str, device: str, post_build_id: str,
                                  pre_build_id: str, incremental: str):
     """
-    Generate the candidate legacy (~May 2016 era) OTA filenames for either
-    the full-update naming scheme (pre+post build known) or the direct-OTA
+    Generate the candidate legacy (~May 2016 era) OTA filenames for the
+    full-update naming scheme (pre+post build known) and the direct-OTA
     naming scheme (only post-build/incremental known).
+
+    `device` is expected to already be alias-translated (see
+    _ota_alias_device) by the caller.
+
+    Note: the "incremental-BUILD.Mxxx_y-BUILD.Mxxx_y" naming family isn't
+    generated here, because the Mxxx_y token is a separate per-build
+    revision counter that can't be reliably derived from a fingerprint —
+    it has to come from an already-known long-form filename (handled by
+    probe_direct_url_alternate / remember_ota_longform instead).
     """
     names = []
     short = sha1[:8] if sha1 else ''
@@ -7275,39 +7556,132 @@ def build_alternative_filenames(sha1: str, device: str, post_build_id: str,
         names.append(f"{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}.{short}.zip")
         names.append(f"{sha1}.signed-signed-{device}-{post_build_id}-from-{pre_build_id}.zip")
         names.append(f"{sha1}.signed-signed-{device}-{post_build_id}-from-{pre_build_id}.{short}.zip")
+        names.append(f"{sha1}.{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}.zip")
+        names.append(f"{sha1}.{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}.{short}.zip")
+        names.append(f"{sha1}.{sha1}.signed_signed-{device}-{post_build_id}-from-{pre_build_id}.zip")
+        names.append(f"{sha1}.{sha1}.signed_signed-{device}-{post_build_id}-from-{pre_build_id}.{short}.zip")
+        names.append(f"{sha1}.loose_ota-signed-{device}-{post_build_id}-from-{pre_build_id}.zip")
+        names.append(f"{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}-full_radio.zip")
+        names.append(f"{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}-fullradio.zip")
+        names.append(f"{sha1}.{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}_full_radio.zip")
+        names.append(f"{sha1}.{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}_fullradio.zip")
+
+        # Common extra-word suffixes seen tacked onto the end of real
+        # Google OTA filenames (both plain "signed-" and "loose_ota-signed-"
+        # prefixed), covering re-releases / fixes of an existing OTA. Each
+        # is tried both in plain form and with the doubled-sha1 prefix
+        # (sha1.sha1.<suffix>.zip), since some servers use that form.
+        for extra in ('new-timestamp', 'superblock-fix', 'fullradio-fix-superblock',
+                      'restricted-radio', 'factory-recovery-ok'):
+            names.append(f"{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}-{extra}.zip")
+            names.append(f"{sha1}.{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}-{extra}.zip")
+            names.append(f"{sha1}.loose_ota-signed-{device}-{post_build_id}-from-{pre_build_id}-{extra}.zip")
+            names.append(f"{sha1}.{sha1}.loose_ota-signed-{device}-{post_build_id}-from-{pre_build_id}-{extra}.zip")
+
+        # Re-release counter suffix appended directly onto pre_build_id with
+        # no separator (e.g. '...from-LMY48Z1.zip'), seen when Google
+        # re-signs/re-releases the same OTA a second (or third) time.
+        for rev in ('1', '2', '3'):
+            names.append(f"{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}{rev}.zip")
+            names.append(f"{sha1}.{sha1}.signed-{device}-{post_build_id}-from-{pre_build_id}{rev}.zip")
+            names.append(f"{sha1}.loose_ota-signed-{device}-{post_build_id}-from-{pre_build_id}{rev}.zip")
+
+        # 'signed-unsigned-<device>-ota-<POST>-from-<PRE>[-extra...]' family
+        # (with the '-ota-' infix between device and post-build), seen with
+        # a short-hash joined to the descriptive part by a dash instead of
+        # appearing as its own dot-separated segment, e.g.
+        # <sha1>.<short8>-signed-unsigned-shamu-ota-LYZ28E-from-LMY47Z-
+        # fullradio-superblock-fix.zip
+        for extra in (None, 'fullradio-superblock-fix', 'superblock-fix', 'fullradio-fix-superblock'):
+            suffix_tail = f"-{extra}" if extra else ""
+            names.append(
+                f"{sha1}.signed-unsigned-{device}-ota-{post_build_id}-from-{pre_build_id}{suffix_tail}.zip")
+            names.append(
+                f"{sha1}.{short}-signed-unsigned-{device}-ota-{post_build_id}-from-{pre_build_id}{suffix_tail}.zip")
     elif post_build_id and incremental:
         names.append(f"{sha1}.signed-{device}-ota-{incremental}.zip")
         names.append(f"{sha1}.signed-signed-{device}-ota-{incremental}.zip")
 
+    # Naming-scheme-independent — worth trying regardless of what build
+    # info is available.
+    names.append(f"{sha1}.update.zip")
+
     return names
 
 
-def check_alternative_ota_names(base_prefix: str, candidates: list, status_cb=None, timeout: int = 12):
-    """HEAD-check each candidate filename against base_prefix; return list
-    of (name, url, working: bool) tuples."""
+def check_alternative_ota_names(base_prefix: str, candidates: list, status_cb=None, timeout: int = 12,
+                                 max_workers: int = 40, max_retries: int = 1):
+    """Check each candidate filename against base_prefix, up to
+    `max_workers` (default 40) requests in flight at once, and return the
+    list of (name, url, working: bool) tuples in the same order as
+    `candidates` was given.
+
+    Uses GET with a 1-byte Range request rather than HEAD: Google's OTA
+    redirector (redirector.gvt1.com) does not reliably honor HEAD requests
+    for these paths (it can respond in ways that make every candidate look
+    like a failure regardless of whether the file actually exists), while
+    a ranged GET reflects the real existence/availability of the file
+    without downloading its full content.
+
+    A clean 404 (file genuinely doesn't exist) is never retried. Any other
+    failure — timeout, connection reset, 5xx, or any other transient
+    network error — gets retried up to `max_retries` extra times before
+    being reported as a failure, since those are far more likely to be
+    noise than an actual "this file doesn't exist" answer.
+    """
     def _s(msg):
         if status_cb:
             status_cb(msg)
 
-    results = []
-    for i, name in enumerate(candidates):
-        candidate_url = base_prefix + name
-        _s(f"Checking alternative {i+1}/{len(candidates)}…")
-        working = False
+    def _attempt_once(candidate_url):
+        """Returns (working: bool, is_definitive_404: bool)."""
         try:
-            req = urllib.request.Request(candidate_url, method='HEAD', headers={
+            req = urllib.request.Request(candidate_url, method='GET', headers={
                 'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
                 'Accept-Encoding': 'identity',
+                'Range': 'bytes=0-0',
             })
             ctx = ssl.create_default_context()
             with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-                working = resp.getcode() in (200, 206)
+                return resp.getcode() in (200, 206), False
         except urllib.error.HTTPError as e:
-            working = e.code in (200, 206)
+            if e.code == 404:
+                return False, True
+            return e.code in (200, 206), False
         except Exception:
-            working = False
-        results.append((name, candidate_url, working))
-    return results
+            return False, False
+
+    def _check_one(name):
+        candidate_url = base_prefix + name
+        working, is_404 = _attempt_once(candidate_url)
+        attempts = 0
+        while not working and not is_404 and attempts < max_retries:
+            attempts += 1
+            working, is_404 = _attempt_once(candidate_url)
+        return name, candidate_url, working
+
+    if not candidates:
+        return []
+
+    total = len(candidates)
+    results_by_index = [None] * total
+    done_count = 0
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_index = {
+            executor.submit(_check_one, name): i
+            for i, name in enumerate(candidates)
+        }
+        for future in concurrent.futures.as_completed(future_to_index):
+            i = future_to_index[future]
+            try:
+                results_by_index[i] = future.result()
+            except Exception:
+                results_by_index[i] = (candidates[i], base_prefix + candidates[i], False)
+            done_count += 1
+            _s(f"Checking alternatives… {done_count}/{total} done")
+
+    return results_by_index
 
 
 def probe_alternative_filenames(url: str, last_modified: str,
@@ -7342,13 +7716,18 @@ def probe_alternative_filenames(url: str, last_modified: str,
 
     original_fname = parsed.path.rsplit('/', 1)[-1]
 
-    # Old-style filenames (e.g. sha1.signed-bass-LDZ22D-from-LJZ13E.short.zip
-    # or sha1.Dotasigned-...zip) are unambiguous on their own — they already
-    # tell us this is the legacy naming scheme, so we don't need (and must
-    # not require) the Last-Modified date to match the legacy era before
-    # trying the trimmed sha1.zip variant.
-    if '.signed-' in original_fname or '.Dotasigned-' in original_fname:
-        # The link already uses the signed-*/Dotasigned-* naming scheme, so
+    # Old-style filenames (e.g. sha1.signed-bass-LDZ22D-from-LJZ13E.short.zip,
+    # sha1.Dotasigned-...zip, sha1.signed_signed-...zip, sha1.loose_ota-signed-
+    # ...zip, sha1.incremental-BUILD.Mxxx_y-BUILD.Mxxx_y.zip, sha1.update.zip,
+    # etc.) are unambiguous on their own — they already tell us this is the
+    # legacy naming scheme, so we don't need (and must not require) the
+    # Last-Modified date to match the legacy era before trying the trimmed
+    # sha1.zip variant.
+    _longform_markers = ('.signed-', '.signed_', '.Dotasigned-', '.re_signed-',
+                          '.loose_ota-', '.incremental-', '.update.')
+    if any(marker in original_fname for marker in _longform_markers) or \
+            _split_ota_longform_filename(original_fname)[0] is not None:
+        # The link already uses a recognized long-form naming scheme, so
         # there's no need to brute-force every historical pattern — just
         # strip whatever comes after the sha1 (keeping only the .zip
         # extension) and check whether that trimmed-down name resolves on
@@ -7369,10 +7748,15 @@ def probe_alternative_filenames(url: str, last_modified: str,
     post_build_id, device = _build_id_from_fingerprint(post_build_fingerprint) if post_build_fingerprint else (None, None)
     pre_build_id, _ = _build_id_from_fingerprint(pre_build_fingerprint) if pre_build_fingerprint else (None, None)
 
-    if not device:
-        out['reason'] = "Could not determine device codename (post-build fingerprint missing or unparsable)"
-        return out
-
+    # NOTE: the fingerprint's own "incremental" field (parts[4] of
+    # oem/product/device:api/build_tag/incremental:build_type/key_type) is
+    # NOT the same thing as the "Mxxx_y" number seen in filenames like
+    # "...incremental-LMY47M.M001_6-LMY47M.M003_8.zip". That Mxxx_y token
+    # is a separate per-build revision counter that isn't derivable from
+    # the fingerprint alone, so we can't reconstruct incremental-style
+    # filenames purely from pre/post fingerprints — we only use the
+    # fingerprint incremental for the older "device-ota-<incremental>"
+    # direct-OTA naming scheme below.
     incremental = None
     if post_build_fingerprint:
         try:
@@ -7380,7 +7764,24 @@ def probe_alternative_filenames(url: str, last_modified: str,
         except Exception:
             incremental = None
 
-    candidates = build_alternative_filenames(sha1, device, post_build_id, pre_build_id, incremental)
+    if not device:
+        out['reason'] = "Could not determine device codename (post-build fingerprint missing or unparsable)"
+        # Even without build info, still worth trying the naming-scheme
+        # independent candidates (e.g. sha1.update.zip).
+        candidates = [f"{sha1}.update.zip"]
+    else:
+        # The device codename in a build fingerprint doesn't always match
+        # the codename used in OTA filenames exactly (e.g. fingerprint
+        # 'flounder_lte' vs OTA filename 'flounderlte') — try every known
+        # spelling variant and merge all the resulting candidates.
+        candidates = []
+        seen_candidates = set()
+        for device_variant in _ota_device_name_candidates(device, url=base_url):
+            for name in build_alternative_filenames(
+                    sha1, device_variant, post_build_id, pre_build_id, incremental):
+                if name not in seen_candidates:
+                    seen_candidates.add(name)
+                    candidates.append(name)
 
     if not candidates:
         out['reason'] = "Not enough build info to construct candidate filenames"
@@ -7389,6 +7790,18 @@ def probe_alternative_filenames(url: str, last_modified: str,
     out['checked'] = True
     _s(f"Checking {len(candidates)} alternative filename(s)…")
     out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+
+    # If nothing worked and this is a plain sha1.zip whose Last-Modified
+    # date matches the legacy (16 May 2016) naming era, alternative names
+    # almost certainly exist even though we couldn't find them here — let
+    # the user know rather than silently reporting "nothing found".
+    if out['checked'] and not any(ok for _n, _u, ok in out['results']):
+        if last_modified and last_modified.startswith(LEGACY_LASTMOD_PREFIX):
+            out['reason'] = ("No alternative names found, but they should exist for this OTA "
+                              "(Last-Modified matches the legacy 16 May 2016 naming era).")
+        else:
+            out['reason'] = "No working alternative names found."
+
     return out
 
 
