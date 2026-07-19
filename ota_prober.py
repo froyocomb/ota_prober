@@ -825,16 +825,10 @@ class OTAProberGUI:
         поточної розкладки клавіатури (укр., рос., будь-яка інша).
         """
         CTRL_CHARS = {
-            'copy':  '\x03',
-            'paste': '\x16',
-            'cut':   '\x18',
-            'all':   '\x01',
-        }
-        KEYSYMS = {
-            'copy':  {'c', 'C'},
-            'paste': {'v', 'V'},
-            'cut':   {'x', 'X'},
-            'all':   {'a', 'A'},
+            '\x03': 'copy',
+            '\x16': 'paste',
+            '\x18': 'cut',
+            '\x01': 'all',
         }
 
         def get_focused_text_widget():
@@ -843,33 +837,24 @@ class OTAProberGUI:
                 return w
             return None
 
-        def do_copy(event):
-            w = get_focused_text_widget()
-            if w is None:
-                return
+        def do_copy(w):
             try:
                 if isinstance(w, (tk.Entry, ttk.Entry)):
                     if w.selection_present():
                         text = w.selection_get()
-                    else:
-                        return
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
                 else:
-                    text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
-                self.root.clipboard_clear()
-                self.root.clipboard_append(text)
+                    if w.tag_ranges(tk.SEL):
+                        text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
             except tk.TclError:
                 pass
-            return "break"
 
-        def do_paste(event):
-            w = get_focused_text_widget()
-            if w is None:
-                return
+        def do_paste(w):
             try:
                 clip = self.root.clipboard_get()
-            except tk.TclError:
-                return "break"
-            try:
                 if isinstance(w, (tk.Entry, ttk.Entry)):
                     if w.selection_present():
                         w.delete(tk.SEL_FIRST, tk.SEL_LAST)
@@ -880,35 +865,25 @@ class OTAProberGUI:
                     w.insert(tk.INSERT, clip)
             except tk.TclError:
                 pass
-            return "break"
 
-        def do_cut(event):
-            w = get_focused_text_widget()
-            if w is None:
-                return
+        def do_cut(w):
             try:
                 if isinstance(w, (tk.Entry, ttk.Entry)):
-                    if not w.selection_present():
-                        return "break"
-                    text = w.selection_get()
-                    self.root.clipboard_clear()
-                    self.root.clipboard_append(text)
-                    w.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                    if w.selection_present():
+                        text = w.selection_get()
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
+                        w.delete(tk.SEL_FIRST, tk.SEL_LAST)
                 else:
-                    if not w.tag_ranges(tk.SEL):
-                        return "break"
-                    text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
-                    self.root.clipboard_clear()
-                    self.root.clipboard_append(text)
-                    w.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                    if w.tag_ranges(tk.SEL):
+                        text = w.get(tk.SEL_FIRST, tk.SEL_LAST)
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text)
+                        w.delete(tk.SEL_FIRST, tk.SEL_LAST)
             except tk.TclError:
                 pass
-            return "break"
 
-        def do_select_all(event):
-            w = get_focused_text_widget()
-            if w is None:
-                return
+        def do_select_all(w):
             try:
                 if isinstance(w, (tk.Entry, ttk.Entry)):
                     w.selection_range(0, tk.END)
@@ -916,38 +891,32 @@ class OTAProberGUI:
                     w.tag_add(tk.SEL, '1.0', tk.END)
             except tk.TclError:
                 pass
-            return "break"
-
-        def matches(event, action):
-            if event.char == CTRL_CHARS[action]:
-                return True
-            ks = event.keysym
-            if (event.state & 0x4) and ks in KEYSYMS[action]:
-                return True
-            return False
 
         def on_key(event):
-            if matches(event, 'copy'):
-                return do_copy(event)
-            if matches(event, 'paste'):
-                return do_paste(event)
-            if matches(event, 'cut'):
-                return do_cut(event)
-            if matches(event, 'all'):
-                return do_select_all(event)
-            # Якщо це Ctrl-комбінація, яку ми обробляємо на bind_class
-            if event.state & 0x4 and event.keysym.lower() in ('c', 'v', 'x', 'a'):
-                return "break"
+            if not (event.state & 0x4):
+                return
+            
+            if event.keysym.lower() in ('c', 'v', 'x'):
+                return
 
-        for widget_class in ('Entry', 'Text', 'TEntry', 'TCombobox'):
-            self.root.bind_class(widget_class, '<Control-c>', on_key)
-            self.root.bind_class(widget_class, '<Control-C>', on_key)
-            self.root.bind_class(widget_class, '<Control-v>', on_key)
-            self.root.bind_class(widget_class, '<Control-V>', on_key)
-            self.root.bind_class(widget_class, '<Control-x>', on_key)
-            self.root.bind_class(widget_class, '<Control-X>', on_key)
-            self.root.bind_class(widget_class, '<Control-a>', on_key)
-            self.root.bind_class(widget_class, '<Control-A>', on_key)
+            action = CTRL_CHARS.get(event.char)
+            
+            w = get_focused_text_widget()
+            if not w:
+                return
+
+            if action == 'copy':
+                do_copy(w)
+            elif action == 'paste':
+                do_paste(w)
+            elif action == 'cut':
+                do_cut(w)
+            elif action == 'all' or event.keysym.lower() == 'a':
+                do_select_all(w)
+            else:
+                return
+            
+            return "break"
 
         self.root.bind_all('<Key>', on_key)
 
@@ -1015,17 +984,32 @@ class OTAProberGUI:
 
         ttk.Label(input_frame, text="Enter fingerprint:", style='Normal.TLabel').grid(row=0, column=0, sticky=tk.W, pady=5)
 
+        self.device_sn_label = ttk.Label(input_frame, text="Device SN (Optional):", style='Normal.TLabel')
+        self.device_sn_label.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
+        
         self.fingerprint_var = tk.StringVar()
         self.fingerprint_entry = ttk.Entry(input_frame, textvariable=self.fingerprint_var, width=70, font=('Courier', 10))
         self.fingerprint_entry.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=5)
         self.fingerprint_entry.insert(0, "google/shamu/shamu:5.1/LYZ28E/1858530:user/release-keys")
 
+        self.device_sn_var = tk.StringVar()
+        self.device_sn_entry = ttk.Entry(input_frame, textvariable=self.device_sn_var, width=20, font=('Courier', 10))
+        self.device_sn_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
+        
+        self.imei_label = ttk.Label(input_frame, text="IMEI (Optional):", style='Normal.TLabel')
+        self.imei_label.grid(row=0, column=2, sticky=tk.W, padx=5, pady=5)
+        
+        self.imei_var = tk.StringVar()
+        self.imei_entry = ttk.Entry(input_frame, textvariable=self.imei_var, width=20, font=('Courier', 10))
+        self.imei_entry.grid(row=1, column=2, sticky=(tk.W, tk.E), padx=5, pady=5)
+        
         self.fingerprint_format_var = tk.StringVar(
             value="Format: oem/product/device:api/build_tag/incremental:build_type/key_type")
         ttk.Label(input_frame, textvariable=self.fingerprint_format_var,
                   style='Normal.TLabel', foreground='#666666').grid(row=2, column=0, sticky=tk.W)
 
         input_frame.columnconfigure(0, weight=1)
+        input_frame.columnconfigure(1, weight=0)
         self._cros_appid_row_widgets = [self.cros_appid_combo]
         self._cros_only_widgets = [
             self.cros_board_label, self.cros_board_combo,
@@ -1489,6 +1473,20 @@ class OTAProberGUI:
                 self.params_frame.grid_remove()
             else:
                 self.params_frame.grid()
+                
+        if hasattr(self, 'device_sn_label'):
+            if is_cros or is_xiaomi:
+                self.device_sn_label.grid_remove()
+                self.device_sn_entry.grid_remove()
+                if hasattr(self, 'imei_label'):
+                    self.imei_label.grid_remove()
+                    self.imei_entry.grid_remove()
+            else:
+                self.device_sn_label.grid()
+                self.device_sn_entry.grid()
+                if hasattr(self, 'imei_label'):
+                    self.imei_label.grid()
+                    self.imei_entry.grid()
 
     # ── Locale ↔ Timezone auto-fill ──────────────────────────────────────
     def _on_locale_selected(self, event):
@@ -2843,10 +2841,13 @@ class OTAProberGUI:
             daemon=True
         )
         self._brute_producer_thread.start()
+        
+        device_sn = getattr(self, 'device_sn_var', tk.StringVar()).get().strip()
+        imei = getattr(self, 'imei_var', tk.StringVar()).get().strip()
 
         self._brute_worker_threads = []
         for _ in range(n_workers):
-            t = threading.Thread(target=self._brute_worker, daemon=True)
+            t = threading.Thread(target=self._brute_worker, args=(device_sn, imei), daemon=True)
             t.start()
             self._brute_worker_threads.append(t)
 
@@ -2880,7 +2881,7 @@ class OTAProberGUI:
             for _ in range(n_workers):
                 self._brute_queue.put(None)
 
-    def _brute_worker(self):
+    def _brute_worker(self, device_sn="", imei=""):
         while True:
             self._brute_pause_event.wait()
             if self._brute_stop_flag:
@@ -2914,7 +2915,7 @@ class OTAProberGUI:
                     break
                 try:
                     # ЗАВЖДИ передаємо locale та timezone у запит
-                    settings, _raw = perform_checkin(fp, locale=loc, timezone=tz)
+                    settings, _raw = perform_checkin(fp, locale=loc, timezone=tz, device_sn=device_sn, imei=imei)
                     if not settings:
                         if attempt == max_retries - 1:
                             self._brute_log(f"  BUILD={build_tag} KEY={key_type} INC={inc} LOCALE={loc} → no response (after {max_retries} retries)", 'skip')
@@ -3868,8 +3869,10 @@ class OTAProberGUI:
 
             locale = self.locale_var.get().strip()
             timezone = self.timezone_var.get().strip()
+            device_sn = getattr(self, 'device_sn_var', tk.StringVar()).get().strip()
+            imei = getattr(self, 'imei_var', tk.StringVar()).get().strip()
 
-            settings, raw_bytes = perform_checkin(fingerprint, locale, timezone)
+            settings, raw_bytes = perform_checkin(fingerprint, locale, timezone, device_sn, imei)
 
             if not settings:
                 self.log_output("ERROR: Check-in failed - No response from server", 'error')
@@ -4407,6 +4410,10 @@ class OTAProberGUI:
                 locales = [loc.strip() for loc in re.split(r'[,\s\n]+', scan_locales_str) if loc.strip()]
             else:
                 locales = [self.locale_var.get().strip()]
+                
+
+            device_sn = getattr(self, 'device_sn_var', tk.StringVar()).get().strip()
+            imei = getattr(self, 'imei_var', tk.StringVar()).get().strip()
 
             self.log_output("=" * 75, 'header')
             self.log_output("KEY TYPE SCAN RESULTS", 'header')
@@ -4436,7 +4443,7 @@ class OTAProberGUI:
                     self.update_status(f"Scanning {key} with {loc} ({counter}/{total})...")
 
                     try:
-                        settings, raw_bytes = perform_checkin(test_fp, locale=loc, timezone=tz)
+                        settings, raw_bytes = perform_checkin(test_fp, locale=loc, timezone=tz, device_sn=device_sn, imei=imei)
                         if not settings:
                             self.log_output("  Status: ❌ No response from server", 'error')
                             continue
@@ -5195,7 +5202,7 @@ def format_raw_response(raw_bytes):
     return human_str, hex_str
 
 
-def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_York"):
+def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_York", device_sn="", imei=""):
     try:
         parsed = parse_fingerprint(fingerprint)
     except ValueError as e:
@@ -5214,28 +5221,35 @@ def build_checkin_request(fingerprint, locale="en-US", timezone="America/New_Yor
     checkin += encode_int64(2, 0)
     checkin += encode_string(8, "WIFI::")
     checkin += encode_int64(9, 0)
+    checkin += encode_int64(12, 0) 
     checkin += encode_int64(14, 2)
     checkin += encode_bool(18, False)
     checkin += encode_string(19, "WIFI")
 
     request = b''
+    if imei:
+        request += encode_string(1, imei)
     tag = (4 << 3) | 2
     request += encode_varint(tag) + encode_varint(len(checkin)) + checkin
     request += encode_int64(2, 0)
     request += encode_string(3, "1-0000000000000000000000000000000000000000")
     request += encode_string(6, locale)
+    if imei:
+        request += encode_string(10, imei)
     request += encode_string(12, timezone)
     request += encode_int64(14, 3)
+    if device_sn:
+        request += encode_string(16, device_sn)
     request += encode_int64(20, 0)
     request += encode_int64(22, 0)
 
     return request
 
 
-def perform_checkin(fingerprint, locale="en-US", timezone="America/New_York"):
+def perform_checkin(fingerprint, locale="en-US", timezone="America/New_York", device_sn="", imei=""):
     try:
         parsed = parse_fingerprint(fingerprint)
-        request_data = build_checkin_request(fingerprint, locale, timezone)
+        request_data = build_checkin_request(fingerprint, locale, timezone, device_sn, imei)
         compressed = gzip.compress(request_data)
 
         url = 'https://android.googleapis.com/checkin'
