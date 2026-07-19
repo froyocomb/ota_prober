@@ -1785,6 +1785,10 @@ class OTAProberGUI:
                     textvariable=self.hi_altnames_parallelism_var,
                     justify=tk.CENTER).pack(side=tk.LEFT, padx=(4, 8))
 
+        self.hi_altnames_enabled_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(alt_controls, text="Check alternative filenames",
+                        variable=self.hi_altnames_enabled_var).pack(side=tk.LEFT, padx=(0, 8))
+
         self.hi_altnames_status_var = tk.StringVar(value="")
         ttk.Label(alt_controls, textvariable=self.hi_altnames_status_var, wraplength=900,
                   justify=tk.LEFT, foreground='#666666').pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -1919,7 +1923,8 @@ class OTAProberGUI:
             self.hi_metadata_status_var.set("Loading…")
 
             self.hi_list_altnames.delete(0, tk.END)
-            self.hi_altnames_status_var.set("Checking…")
+            self.hi_altnames_status_var.set(
+                "Checking…" if self.hi_altnames_enabled_var.get() else "Disabled.")
 
             self._httpinfo_last_result = None
 
@@ -2090,6 +2095,11 @@ class OTAProberGUI:
         return entries
 
     def _httpinfo_altnames_worker(self, url):
+        if not self.hi_altnames_enabled_var.get():
+            self.root.after(0, self._httpinfo_display_altnames,
+                             {'checked': False, 'reason': 'Alternative filename checking is disabled.', 'results': []})
+            self.root.after(0, self._httpinfo_done)
+            return
         # Reuse the metadata fetched by _httpinfo_metadata_worker instead of
         # independently re-fetching the same ZIP over the network in
         # parallel. Previously both workers called fetch_payload_metadata()
