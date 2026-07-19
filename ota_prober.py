@@ -1748,9 +1748,17 @@ class OTAProberGUI:
         alt_f = ttk.Frame(self.httpinfo_nb)
         self.httpinfo_nb.add(alt_f, text="Alternative Filenames")
 
+        alt_controls = ttk.Frame(alt_f)
+        alt_controls.pack(anchor=tk.W, fill=tk.X, pady=(0, 4))
+        ttk.Label(alt_controls, text="Parallel checks:").pack(side=tk.LEFT)
+        self.hi_altnames_parallelism_var = tk.IntVar(value=5)
+        ttk.Spinbox(alt_controls, from_=1, to=100, width=5, increment=1,
+                    textvariable=self.hi_altnames_parallelism_var,
+                    justify=tk.CENTER).pack(side=tk.LEFT, padx=(4, 8))
+
         self.hi_altnames_status_var = tk.StringVar(value="")
-        ttk.Label(alt_f, textvariable=self.hi_altnames_status_var, wraplength=1100,
-                  justify=tk.LEFT, foreground='#666666').pack(anchor=tk.W, fill=tk.X, pady=(0, 4))
+        ttk.Label(alt_controls, textvariable=self.hi_altnames_status_var, wraplength=900,
+                  justify=tk.LEFT, foreground='#666666').pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         alt_wrap = ttk.Frame(alt_f)
         alt_wrap.pack(fill=tk.BOTH, expand=True)
@@ -2099,26 +2107,34 @@ class OTAProberGUI:
 
         try:
             status_cb = lambda m: self.root.after(0, self.hi_altnames_status_var.set, m)
+            try:
+                max_workers = max(1, int(self.hi_altnames_parallelism_var.get()))
+            except Exception:
+                max_workers = 5
 
             # First, a cheap check that works purely off the URL's own
             # filename (long-form <-> bare sha1.zip, plus common prefix
             # variants), no metadata or fingerprints required — this is
             # what lets pasting either the long descriptive URL or the
             # bare sha1.zip URL find the "other" form of the same file.
-            direct = probe_direct_url_alternate(url, status_cb=status_cb)
+            direct = probe_direct_url_alternate(url, status_cb=status_cb, max_workers=max_workers)
 
             pre_fp = meta.get('fields', {}).get('pre-build') or self.current_ota_precondition
             post_fp = meta.get('fields', {}).get('post-build') or self.current_ota_postcondition
             alt = probe_alternative_filenames(
-                url, last_modified, pre_fp, post_fp, status_cb=status_cb)
+                url, last_modified, pre_fp, post_fp, status_cb=status_cb, max_workers=max_workers)
 
             # Merge results, direct URL-based hits first, de-duplicated by
             # URL so the same working link never appears twice even if
             # both probes happened to generate the same candidate name.
-            seen_urls = set()
+            # The original input URL itself is excluded up front — it's
+            # not an "alternative" to itself, so it should never show up
+            # in the results list even if one of the probes happened to
+            # regenerate it as a candidate.
+            seen_urls = {url, url.lower()}
             merged_results = []
             for name, candidate_url, ok in list(direct.get('results', [])) + list(alt.get('results', [])):
-                if candidate_url in seen_urls:
+                if candidate_url in seen_urls or candidate_url.lower() in seen_urls:
                     continue
                 seen_urls.add(candidate_url)
                 merged_results.append((name, candidate_url, ok))
@@ -7346,7 +7362,7 @@ def _parse_ota_suffix_core(core: str):
     return m.group('device'), m.group('post'), m.group('pre')
 
 
-def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12):
+def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12, max_workers: int = 40):
     """
     Directly inspect the *given* URL's filename (no metadata / fingerprint
     lookups needed) and check other forms of it against the server:
@@ -7448,7 +7464,7 @@ def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12):
 
         _s("Trying short (bare sha1) and alternate long-form variants…")
         out['checked'] = True
-        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
         return out
 
     # Not long-form: is it a bare sha1.zip (full 40-char or short 8-40 char
@@ -7504,7 +7520,7 @@ def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12):
 
     _s("Trying long (descriptive) form, including doubled-sha1 variant…")
     out['checked'] = True
-    out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+    out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
     return out
 
 
@@ -7686,7 +7702,7 @@ def check_alternative_ota_names(base_prefix: str, candidates: list, status_cb=No
 
 def probe_alternative_filenames(url: str, last_modified: str,
                                  pre_build_fingerprint: str, post_build_fingerprint: str,
-                                 status_cb=None, timeout: int = 12):
+                                 status_cb=None, timeout: int = 12, max_workers: int = 40):
     """
     If the OTA link's Last-Modified date matches the legacy naming era
     (Mon, 16 May 2016), try substituting a set of historically-known
@@ -7739,7 +7755,7 @@ def probe_alternative_filenames(url: str, last_modified: str,
             return out
         out['checked'] = True
         _s("Checking trimmed sha1.zip variant…")
-        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
         return out
 
     # For a bare sha1.zip-style URL there's no naming-scheme hint in the
@@ -7789,7 +7805,7 @@ def probe_alternative_filenames(url: str, last_modified: str,
 
     out['checked'] = True
     _s(f"Checking {len(candidates)} alternative filename(s)…")
-    out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout)
+    out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
 
     # If nothing worked and this is a plain sha1.zip whose Last-Modified
     # date matches the legacy (16 May 2016) naming era, alternative names
