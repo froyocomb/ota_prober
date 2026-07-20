@@ -1,0 +1,6100 @@
+{
+  "serials": [
+    {
+      "value": "M6GG7220G01108",
+      "note": "Gives an internal NRT0.190423.005 userdebug/test-keys OTA for Jamboard",
+      "tags": [
+        "Google Jamboard",
+        "baracus",
+        "test-keys"
+      ],
+      "created": "2026-07-20 23:49:08",
+      "modified": "2026-07-21 00:22:46"
+    },
+    {
+      "value": "5A011JCA7114R00203",
+      "note": "Gives an internal BGQ1.260312.001 userdebug/test-keys OTA for Google Glass devices",
+      "tags": [
+        "Google Glass",
+        "arrow",
+        "barney",
+        "betty",
+        "harriet",
+        "martha",
+        "test-keys"
+      ],
+      "created": "2026-07-21 00:18:10",
+      "modified": "2026-07-21 00:27:00"
+    },
+    {
+      "value": "49281JEBF00071",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF21819",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF22534",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF22631",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF22713",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF23192",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF23211",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF23469",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF23644",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF23681",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF23697",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF23867",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:27",
+      "modified": "2026-07-21 00:41:27"
+    },
+    {
+      "value": "4A251JEBF27289",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A251JEBF27412",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A251JEBF27520",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A251JEBF27796",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A251JEBF30418",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22097",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22150",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22161",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22179",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22193",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22196",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22222",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22333",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22338",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22392",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22396",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22410",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22478",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22496",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22502",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22516",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22536",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22561",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22590",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22604",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22639",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22807",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22816",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22832",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22883",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22890",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22976",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22982",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF22996",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23002",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23022",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23034",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23059",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23081",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23157",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23166",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23248",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23293",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23311",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23324",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23355",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23393",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23397",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23403",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23431",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23444",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23497",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23599",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23603",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23617",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23624",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23640",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23664",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23765",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23784",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23792",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23808",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23875",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23904",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A301JEBF23940",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A311JEBF12528",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A311JEBF12545",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A311JEBF12579",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A311JEBF12737",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A311JEBF12844",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4A311JEBF13025",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF22671",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF22938",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23004",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23012",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23021",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23119",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23140",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23230",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23400",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23422",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23526",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23711",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23721",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23923",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF23964",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF24035",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF24067",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF24102",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF24107",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF24111",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:28",
+      "modified": "2026-07-21 00:41:28"
+    },
+    {
+      "value": "4B011JEBF24142",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B011JEBF24340",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B011JEBF24533",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B021JEBF12176",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B031JEBF03517",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18430",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18484",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18496",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18510",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18531",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18534",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18537",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18547",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18550",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18555",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18581",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18646",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18768",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18779",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18790",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B051JEBF18917",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B071JEBF00097",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B071JEBF00194",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B071JEBF00230",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF13710",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF13791",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF14575",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF14884",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF25997",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF26126",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF26257",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF26895",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF27125",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF27254",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF27507",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF27595",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF27739",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF27836",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF27916",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF27967",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF28035",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF28049",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF28111",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF28146",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF28266",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B091JEBF28347",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B151JEBF21028",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF02186",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF02482",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF02663",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF03923",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF04292",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF05337",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF09512",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF09525",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF09527",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF09650",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF09697",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF09715",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF09726",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B181JEBF10646",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B211JEBF22673",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B261JEBF14114",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF21297",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF21411",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF21473",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF21722",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF21774",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF21837",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF23550",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF23656",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF23659",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF23820",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF24207",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B271JEBF24482",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B281JEBF06215",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B281JEBF06415",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B281JEBF06626",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B281JEBF06676",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B281JEBF06757",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B281JEBF06826",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B281JEBF06956",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:29",
+      "modified": "2026-07-21 00:41:29"
+    },
+    {
+      "value": "4B281JEBF07006",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4B281JEBF07118",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4B281JEBF08052",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4B281JEBF13240",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4B281JEBF13463",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4B281JEBF13565",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4B281JEBF14144",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4B281JEBF14366",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4B291JEBF10357",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C051JEBF19986",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02205",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02371",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02380",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02391",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02403",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02412",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02439",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02441",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02520",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02550",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02558",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02582",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02741",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF02965",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03088",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03093",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03110",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03152",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03223",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03250",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03379",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03429",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03433",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C111JEBF03445",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C121JEBF15509",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C171JEBF06775",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C171JEBF06804",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C171JEBF06831",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C171JEBF06856",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C171JEBF06883",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C171JEBF06910",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16072",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16082",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16123",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16166",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16197",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16270",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16274",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16299",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16315",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16329",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16332",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16378",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16401",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16415",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16437",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16502",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16508",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16517",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16525",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16589",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16596",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16625",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16628",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16632",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16690",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16743",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16806",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16817",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16832",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16884",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16886",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16936",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16943",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16981",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16988",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF16994",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF17015",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:30",
+      "modified": "2026-07-21 00:41:30"
+    },
+    {
+      "value": "4C191JEBF17023",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17025",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17048",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17107",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17141",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17142",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17188",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17259",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17299",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17302",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17326",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17344",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17358",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17364",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17393",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17429",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17506",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17536",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17557",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17656",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17693",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17699",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17744",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17760",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17781",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17788",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17859",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17883",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF17937",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18007",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18021",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18052",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18067",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18072",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18090",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18101",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18127",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18153",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18166",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18187",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18231",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18304",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18318",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18319",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18350",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18362",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18377",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18422",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18476",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18480",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF18520",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF22176",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF22320",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF22698",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF22772",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF22835",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF22849",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF22941",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF22992",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23108",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23324",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23407",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23662",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23670",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23696",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23726",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23874",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23891",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23924",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C191JEBF23964",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C201JEBF18533",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C201JEBF18947",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C201JEBF18963",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C201JEBF19052",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:31",
+      "modified": "2026-07-21 00:41:31"
+    },
+    {
+      "value": "4C201JEBF19054",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19139",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19208",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19219",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19247",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19252",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19298",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19363",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19383",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19402",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19404",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19476",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF19561",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF20804",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF20936",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF21026",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF21379",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF21398",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF21426",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF21482",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF21555",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF22156",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C201JEBF22264",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C221JEBF22179",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C221JEBF23797",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C221JEBF24667",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C221JEBF24672",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C221JEBF24753",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31010",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31218",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31234",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31282",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31296",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31323",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31346",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31416",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31439",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31493",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31531",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31540",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31658",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31712",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31720",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31737",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31778",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31795",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31820",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31857",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31860",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31863",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31867",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31889",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31899",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31908",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31934",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31940",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31951",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31967",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31975",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF31989",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF32021",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF32024",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF32037",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF32107",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF32113",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF32124",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF32130",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF32131",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:32",
+      "modified": "2026-07-21 00:41:32"
+    },
+    {
+      "value": "4C261JEBF32145",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32168",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32178",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32193",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32212",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32249",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32292",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32305",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32347",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32420",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32423",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32426",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32442",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32474",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32480",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32484",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32524",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32580",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32660",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32756",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32794",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32858",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32862",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32876",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32904",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32911",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32938",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF32966",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33071",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33156",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33162",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33163",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33234",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33237",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33241",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33248",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33259",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33263",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33277",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33322",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33323",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33341",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33343",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33363",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33370",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33417",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33450",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33456",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33465",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "4C261JEBF33481",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF00073",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF00091",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF00098",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF00107",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF00111",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF00422",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF00829",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF01067",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF01239",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF01436",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF01444",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF01467",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF01475",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:33",
+      "modified": "2026-07-21 00:41:33"
+    },
+    {
+      "value": "51021JEBF01504",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF01555",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF01766",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF01814",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF01933",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF02483",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22075",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22079",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22088",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22093",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22095",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22158",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22163",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22224",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22233",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22249",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22306",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22388",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22415",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22425",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22523",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22592",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22600",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22605",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22726",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22753",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22960",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22989",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF22994",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF23052",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF23054",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "51021JEBF23063",
+      "note": "Gives a brick dev-keys OTA for Pixel 9a",
+      "tags": [
+        "Pixel 9a",
+        "brick",
+        "dev-keys",
+        "tegu"
+      ],
+      "created": "2026-07-21 00:41:34",
+      "modified": "2026-07-21 00:41:34"
+    }
+  ],
+  "imeis": [
+    {
+      "value": "358116100183567",
+      "note": "Gives an internal RQ3A.210605.005 userdebug/dev-keys OTA for Pixel 4a 5G",
+      "tags": [
+        "Pixel 4a 5G",
+        "auth",
+        "bramble",
+        "dev-keys"
+      ],
+      "created": "2026-07-20 23:59:06",
+      "modified": "2026-07-21 00:02:37"
+    },
+    {
+      "value": "358116100175209",
+      "note": "Gives an internal UP1A.231105.001.B2 userdebug/dev-keys OTA for Pixel 4a 5G",
+      "tags": [
+        "Pixel 4a 5G",
+        "bramble",
+        "dev-keys"
+      ],
+      "created": "2026-07-21 00:01:17",
+      "modified": "2026-07-21 00:02:02"
+    },
+    {
+      "value": "358239050010646",
+      "note": "Gives a brick dev- and test-keys OTAs for many devices",
+      "tags": [
+        "brick",
+        "dev-keys",
+        "test-keys"
+      ],
+      "created": "2026-07-21 00:05:04",
+      "modified": "2026-07-21 00:42:05"
+    },
+    {
+      "value": "353050680117429",
+      "note": "Gives a brick dev- and test-keys OTAs for many devices",
+      "tags": [
+        "brick",
+        "dev-keys",
+        "test-keys"
+      ],
+      "created": "2026-07-21 00:06:07",
+      "modified": "2026-07-21 00:42:10"
+    },
+    {
+      "value": "357537080157928",
+      "note": "Gives an internal QP1A.190711.019 userdebug/dev-keys OTA for Pixel 2",
+      "tags": [
+        "Pixel 2",
+        "dev-keys",
+        "walleye"
+      ],
+      "created": "2026-07-21 00:10:25",
+      "modified": "2026-07-21 00:13:07"
+    },
+    {
+      "value": "352493110186328",
+      "note": "Gives an internal UP1A.231105.001.B2 userdebug/dev-keys OTA for Pixel 5",
+      "tags": [
+        "Pixel 5",
+        "dev-keys",
+        "refin"
+      ],
+      "created": "2026-07-21 00:15:47",
+      "modified": "2026-07-21 00:16:13"
+    }
+  ],
+  "other": []
+}
