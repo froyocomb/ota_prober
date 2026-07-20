@@ -45,6 +45,141 @@ NOTEBOOK_CLS = TkwNotebook if TkwNotebook else ttk.Notebook
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  SERIALS / IMEIs / OTHER — розширювана система нотаток
+# ═══════════════════════════════════════════════════════════════════════════
+#  Цей модуль дозволяє зберігати нотатки у трьох категоріях:
+#    • Serials  — серійні номери пристроїв
+#    • IMEIs    — IMEI-номери
+#    • Other    — будь-яка інша інформація (MAC, ID, ключі тощо)
+#
+#  Нотатки зберігаються у JSON-файлі та підтримують:
+#    – додавання / редагування / видалення
+#    – пошук по всіх нотатках
+#    – копіювання значення в буфер обміну
+#    – автоматичне додавання в поле IMEI / Serial при кліку
+#
+#  Щоб додати свою категорію:
+#    1. Додай нову вкладку у _build_serials_window()
+#    2. Додай відповідний метод _populate_<category>_tab()
+#    3. Додай кнопку додавання у _build_<category>_toolbar()
+#    4. Додай логіку автозаповнення у _on_note_click()
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _get_serials_storage_path():
+    """Шлях до файлу з нотатками Serials/IMEIs/Other."""
+    try:
+        base_dir = _get_storage_dir()
+    except Exception:
+        base_dir = os.path.join(os.path.expanduser("~"), ".ota_prober")
+        os.makedirs(base_dir, exist_ok=True)
+    return os.path.join(base_dir, "serials_imeis.json")
+
+
+def _load_serials_data():
+    """Завантажує нотатки з JSON-файлу."""
+    path = _get_serials_storage_path()
+    default = {"serials": [], "imeis": [], "other": []}
+    try:
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    # Переконуємося, що всі ключі є
+                    for key in default:
+                        if key not in data or not isinstance(data[key], list):
+                            data[key] = []
+                    return data
+    except Exception:
+        pass
+    return default
+
+
+def _save_serials_data(data):
+    """Зберігає нотатки у JSON-файл."""
+    try:
+        path = _get_serials_storage_path()
+        tmp_path = path + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, path)
+    except Exception:
+        pass
+
+
+_ser_data_lock = threading.Lock()
+
+
+def _add_serial_note(category, value, note="", tags=None):
+    """
+    Додає нову нотатку у вказану категорію.
+    category: 'serials' | 'imeis' | 'other'
+    value:    основне значення (напр. '123456789')
+    note:     опис / коментар (напр. 'можна отримати OTA')
+    tags:     список тегів (напр. ['working', 'tested'])
+    """
+    value = (value or "").strip()
+    if not value:
+        return False
+    note = (note or "").strip()
+    tags = sorted(set((t or "").strip() for t in (tags or []) if (t or "").strip()))
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    with _ser_data_lock:
+        data = _load_serials_data()
+        entry = {
+            "value": value,
+            "note": note,
+            "tags": tags,
+            "created": now,
+            "modified": now,
+        }
+        data[category].append(entry)
+        _save_serials_data(data)
+    return True
+
+
+def _update_serial_note(category, index, value=None, note=None, tags=None):
+    """Оновлює існуючу нотатку за індексом."""
+    with _ser_data_lock:
+        data = _load_serials_data()
+        if category not in data or index < 0 or index >= len(data[category]):
+            return False
+        entry = data[category][index]
+        if value is not None:
+            entry["value"] = (value or "").strip()
+        if note is not None:
+            entry["note"] = (note or "").strip()
+        if tags is not None:
+            entry["tags"] = sorted(set((t or "").strip() for t in tags if (t or "").strip()))
+        entry["modified"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        _save_serials_data(data)
+    return True
+
+
+def _delete_serial_note(category, index):
+    """Видаляє нотатку за індексом."""
+    with _ser_data_lock:
+        data = _load_serials_data()
+        if category not in data or index < 0 or index >= len(data[category]):
+            return False
+        data[category].pop(index)
+        _save_serials_data(data)
+    return True
+
+
+def _get_all_serial_tags(data):
+    """Повертає всі унікальні теги з усіх категорій."""
+    tags = set()
+    for cat in ("serials", "imeis", "other"):
+        for entry in data.get(cat, []):
+            for t in entry.get("tags", []) or []:
+                tags.add(t)
+    return sorted(tags)
+
+
+
+
 # ── OTA History & Collection storage ─────────────────────────────────────
 def _get_documents_dir():
     home = os.path.expanduser("~")
@@ -995,6 +1130,11 @@ class OTAProberGUI:
             history_frame, text="🧩 Additional Features",
             command=self.open_additional_features_window)
         self.additional_features_button.pack(side=tk.RIGHT, padx=(6, 0))
+
+        self.serials_imeis_button = ttk.Button(
+            history_frame, text="🔢 Serials/IMEIs",
+            command=self.open_serials_imeis_window)
+        self.serials_imeis_button.pack(side=tk.RIGHT, padx=(6, 0))
 
         self.cros_board_label = ttk.Label(mode_frame, text="Board preset:", style='Normal.TLabel')
         self.cros_board_label.grid(row=0, column=3, sticky=tk.W, padx=(20, 5))
@@ -5256,6 +5396,434 @@ class OTAProberGUI:
 
 # ── Helper functions ──────────────────────────────────────────────────────
 
+    # ═══════════════════════════════════════════════════════════════════
+    #  SERIALS / IMEIs / OTHER — вікно та методи
+    # ═══════════════════════════════════════════════════════════════════
+
+    def open_serials_imeis_window(self):
+        """Відкриває вікно керування Serials, IMEIs та іншими нотатками."""
+        win = tk.Toplevel(self.root)
+        win.title("Serials / IMEIs / Other")
+        win.geometry("900x650")
+        win.configure(bg=self.APP_BG)
+        win.transient(self.root)
+
+        top = ttk.Frame(win, padding=12)
+        top.pack(fill=tk.X)
+        ttk.Label(top, text="🔢 Serials / IMEIs / Other", style='Header.TLabel').pack(side=tk.LEFT)
+
+        # Кнопки дій
+        btn_frame = ttk.Frame(top)
+        btn_frame.pack(side=tk.RIGHT)
+        ttk.Button(btn_frame, text="🔄 Refresh", command=self._refresh_all_serials_tabs).pack(side=tk.LEFT, padx=3)
+        ttk.Button(btn_frame, text="📥 Import", command=self._import_serials).pack(side=tk.LEFT, padx=3)
+        ttk.Button(btn_frame, text="📤 Export", command=self._export_serials).pack(side=tk.LEFT, padx=3)
+
+        # Пошук
+        search_row = ttk.Frame(win, padding=(12, 4, 12, 8))
+        search_row.pack(fill=tk.X)
+        ttk.Label(search_row, text="🔎 Search:", style='Normal.TLabel').pack(side=tk.LEFT, padx=(0, 6))
+        self._ser_search_var = tk.StringVar(value="")
+        search_entry = ttk.Entry(search_row, textvariable=self._ser_search_var, width=40)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        search_entry.bind('<KeyRelease>', lambda e: self._refresh_all_serials_tabs())
+        ttk.Button(search_row, text="✕", width=3,
+                   command=lambda: (self._ser_search_var.set(""), self._refresh_all_serials_tabs())).pack(side=tk.LEFT, padx=(6, 0))
+
+        # Головний Notebook з трьома вкладками
+        self._ser_nb = NOTEBOOK_CLS(win)
+        self._ser_nb.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+
+        # ── Вкладка Serials ──
+        self._ser_serials_tab = ttk.Frame(self._ser_nb)
+        self._ser_nb.add(self._ser_serials_tab, text="Serials")
+        self._build_serials_tab(self._ser_serials_tab, "serials", "Serial Number")
+
+        # ── Вкладка IMEIs ──
+        self._ser_imeis_tab = ttk.Frame(self._ser_nb)
+        self._ser_nb.add(self._ser_imeis_tab, text="IMEIs")
+        self._build_serials_tab(self._ser_imeis_tab, "imeis", "IMEI")
+
+        # ── Вкладка Other ──
+        self._ser_other_tab = ttk.Frame(self._ser_nb)
+        self._ser_nb.add(self._ser_other_tab, text="Other")
+        self._build_serials_tab(self._ser_other_tab, "other", "Value")
+
+        # Статус
+        self._ser_status_var = tk.StringVar(value="Ready.")
+        ttk.Label(win, textvariable=self._ser_status_var,
+                  foreground='#0066cc', style='Normal.TLabel').pack(anchor=tk.W, padx=12, pady=(0, 8))
+
+        self._ser_win = win
+        self._refresh_all_serials_tabs()
+
+    def _build_serials_tab(self, parent, category, value_label):
+        """Будує вміст однієї вкладки (Serials / IMEIs / Other)."""
+        # Тулбар
+        toolbar = ttk.Frame(parent, padding=(0, 4))
+        toolbar.pack(fill=tk.X)
+        ttk.Button(toolbar, text="➕ Add", command=lambda: self._add_note_dialog(category)).pack(side=tk.LEFT, padx=3)
+        ttk.Button(toolbar, text="🗑 Clear All", command=lambda: self._clear_all_notes(category)).pack(side=tk.LEFT, padx=3)
+
+        # Список нотаток (Treeview)
+        cols = ("value", "note", "tags", "modified")
+        tree = ttk.Treeview(parent, columns=cols, show="headings")
+        tree.heading("value", text=value_label)
+        tree.heading("note", text="Note / Description")
+        tree.heading("tags", text="Tags")
+        tree.heading("modified", text="Modified")
+        tree.column("value", width=180, stretch=False)
+        tree.column("note", width=400, stretch=True)
+        tree.column("tags", width=150, stretch=False)
+        tree.column("modified", width=130, stretch=False)
+
+        vsb = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=vsb.set)
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Контекстне меню
+        menu = tk.Menu(tree, tearoff=0)
+        menu.add_command(label="📋 Copy value", command=lambda: self._copy_note_value(tree))
+        menu.add_command(label="📋 Copy row", command=lambda: self._copy_note_row(tree))
+        menu.add_separator()
+        menu.add_command(label="✏️ Edit", command=lambda: self._edit_note_dialog(tree, category))
+        menu.add_command(label="🗑 Delete", command=lambda: self._delete_note(tree, category))
+        menu.add_separator()
+
+        # Автозаповнення — динамічно залежить від категорії
+        if category == "imeis":
+            menu.add_command(label="➡️ Set as IMEI", command=lambda: self._set_as_imei(tree))
+        elif category == "serials":
+            menu.add_command(label="➡️ Set as Device SN", command=lambda: self._set_as_serial(tree))
+        else:
+            menu.add_command(label="➡️ Set as IMEI", command=lambda: self._set_as_imei(tree))
+            menu.add_command(label="➡️ Set as Device SN", command=lambda: self._set_as_serial(tree))
+
+        def _on_right_click(event):
+            item = tree.identify_row(event.y)
+            if item:
+                tree.selection_set(item)
+                menu.post(event.x_root, event.y_root)
+
+        tree.bind('<Button-3>', _on_right_click)
+        tree.bind('<Double-Button-1>', lambda e: self._edit_note_dialog(tree, category))
+
+        # Збереження посилання
+        setattr(self, f"_ser_tree_{category}", tree)
+
+    def _refresh_all_serials_tabs(self):
+        """Оновлює всі три вкладки з урахуванням пошуку."""
+        query = (self._ser_search_var.get() or "").strip().lower()
+        data = _load_serials_data()
+        for category in ("serials", "imeis", "other"):
+            tree = getattr(self, f"_ser_tree_{category}", None)
+            if tree is None:
+                continue
+            for ch in tree.get_children():
+                tree.delete(ch)
+            for idx, entry in enumerate(data.get(category, [])):
+                value = entry.get("value", "")
+                note = entry.get("note", "")
+                tags = ", ".join(entry.get("tags", []) or [])
+                modified = entry.get("modified", "")
+                if query:
+                    haystack = f"{value} {note} {tags}".lower()
+                    if query not in haystack:
+                        continue
+                tree.insert("", tk.END, iid=str(idx), values=(value, note, tags, modified))
+        total = sum(len(data.get(c, [])) for c in ("serials", "imeis", "other"))
+        self._ser_status_var.set(f"Total entries: {total}  •  Click right mouse button on row for actions")
+
+    def _add_note_dialog(self, category):
+        """Діалог додавання нової нотатки (підтримує batch-введення)."""
+        titles = {"serials": "Add Serial Number", "imeis": "Add IMEI", "other": "Add Note"}
+        labels = {"serials": "Serial:", "imeis": "IMEI:", "other": "Value:"}
+        dlg = tk.Toplevel(self.root)
+        dlg.title(titles.get(category, "Add"))
+        dlg.geometry("520x420")
+        dlg.configure(bg=self.APP_BG)
+        dlg.transient(self.root)
+        dlg.grab_set()
+
+        # ── Режим введення: одиночний / batch ──
+        mode_frame = ttk.LabelFrame(dlg, text="Input Mode", padding=6)
+        mode_frame.pack(fill=tk.X, padx=12, pady=(8, 4))
+
+        self._add_mode_var = tk.StringVar(value="single")
+        ttk.Radiobutton(mode_frame, text="Single value", variable=self._add_mode_var,
+                        value="single", command=lambda: self._toggle_add_mode(dlg)).pack(side=tk.LEFT, padx=8)
+        ttk.Radiobutton(mode_frame, text="Batch (multiple values)", variable=self._add_mode_var,
+                        value="batch", command=lambda: self._toggle_add_mode(dlg)).pack(side=tk.LEFT, padx=8)
+
+        # ── Поле значення (динамічно змінюється) ──
+        self._add_value_frame = ttk.Frame(dlg)
+        self._add_value_frame.pack(fill=tk.X, padx=12, pady=(8, 2))
+
+        self._add_value_label = ttk.Label(self._add_value_frame, text=labels.get(category, "Value:") + " *", style='Normal.TLabel')
+        self._add_value_label.pack(anchor=tk.W)
+
+        self._add_single_entry = ttk.Entry(self._add_value_frame, width=50)
+        self._add_single_entry.pack(fill=tk.X, pady=(2, 0))
+
+        self._add_batch_text = tk.Text(self._add_value_frame, height=6, width=50, font=('Courier', 9))
+        self._add_batch_text.pack(fill=tk.BOTH, expand=True, pady=(2, 0))
+        self._add_batch_text.insert(tk.END, "# Enter one value per line\n# Lines starting with # are ignored")
+        self._add_batch_text.pack_forget()  # Initially hidden
+
+        # ── Note / Tags (shared for both modes) ──
+        ttk.Label(dlg, text="Note / Description (shared for all):", style='Normal.TLabel').pack(anchor=tk.W, padx=12, pady=(8, 2))
+        note_var = tk.StringVar()
+        ttk.Entry(dlg, textvariable=note_var, width=50).pack(fill=tk.X, padx=12)
+
+        ttk.Label(dlg, text="Tags (comma separated, shared for all):", style='Normal.TLabel').pack(anchor=tk.W, padx=12, pady=(8, 2))
+        tags_var = tk.StringVar()
+        ttk.Entry(dlg, textvariable=tags_var, width=50).pack(fill=tk.X, padx=12)
+
+        # Підказка з наявних тегів
+        all_tags = _get_all_serial_tags(_load_serials_data())
+        if all_tags:
+            hint = "Existing tags: " + ", ".join(all_tags[:15])
+            if len(all_tags) > 15:
+                hint += f" (+{len(all_tags)-15} more)"
+            ttk.Label(dlg, text=hint, font=('Arial', 8), foreground='#888888').pack(anchor=tk.W, padx=12, pady=(4, 0))
+
+        # Статус batch-режиму
+        self._add_batch_status = ttk.Label(dlg, text="", foreground='#0066cc', font=('Arial', 9))
+        self._add_batch_status.pack(anchor=tk.W, padx=12, pady=(4, 0))
+
+        btn_row = ttk.Frame(dlg)
+        btn_row.pack(fill=tk.X, padx=12, pady=16, side=tk.BOTTOM)
+
+        def _save():
+            mode = self._add_mode_var.get()
+            note = note_var.get().strip()
+            tags = [t.strip() for t in tags_var.get().split(",") if t.strip()]
+
+            if mode == "single":
+                val = self._add_single_entry.get().strip()
+                if not val:
+                    messagebox.showwarning("Required", "Value cannot be empty.", parent=dlg)
+                    return
+                _add_serial_note(category, val, note, tags)
+                self._refresh_all_serials_tabs()
+                dlg.destroy()
+            else:
+                # Batch mode
+                raw = self._add_batch_text.get("1.0", tk.END)
+                lines = []
+                for line in raw.splitlines():
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    lines.append(line)
+
+                if not lines:
+                    messagebox.showwarning("Required", "No valid values found. Enter one per line.", parent=dlg)
+                    return
+
+                added = 0
+                skipped = 0
+                for val in lines:
+                    val = val.strip()
+                    if not val:
+                        skipped += 1
+                        continue
+                    # Перевірка на дублікат (опціонально)
+                    existing = _load_serials_data().get(category, [])
+                    if any(e.get("value") == val for e in existing):
+                        skipped += 1
+                        continue
+                    _add_serial_note(category, val, note, tags)
+                    added += 1
+
+                self._refresh_all_serials_tabs()
+                msg = f"Added {added} entries."
+                if skipped:
+                    msg += f" Skipped {skipped} (empty or duplicate)."
+                self._ser_status_var.set(msg)
+                dlg.destroy()
+
+        ttk.Button(btn_row, text="Save", command=_save).pack(side=tk.RIGHT, padx=(6, 0))
+        ttk.Button(btn_row, text="Cancel", command=dlg.destroy).pack(side=tk.RIGHT)
+
+        # Фокус
+        self._add_single_entry.focus_set()
+        dlg.bind('<Return>', lambda e: _save())
+
+    def _toggle_add_mode(self, dlg):
+        """Перемикає між одиночним та batch-режимом введення."""
+        mode = self._add_mode_var.get()
+        if mode == "single":
+            self._add_single_entry.pack(fill=tk.X, pady=(2, 0))
+            self._add_batch_text.pack_forget()
+            self._add_batch_status.config(text="")
+            self._add_single_entry.focus_set()
+        else:
+            self._add_single_entry.pack_forget()
+            self._add_batch_text.pack(fill=tk.BOTH, expand=True, pady=(2, 0))
+            self._add_batch_status.config(text="Enter one value per line. Lines starting with # are ignored.")
+            self._add_batch_text.focus_set()
+            self._add_batch_text.tag_add(tk.SEL, "1.0", tk.END)
+
+    def _edit_note_dialog(self, tree, category):
+        """Діалог редагування існуючої нотатки."""
+        sel = tree.selection()
+        if not sel:
+            return
+        idx = int(sel[0])
+        data = _load_serials_data()
+        entries = data.get(category, [])
+        if idx < 0 or idx >= len(entries):
+            return
+        entry = entries[idx]
+
+        titles = {"serials": "Edit Serial", "imeis": "Edit IMEI", "other": "Edit Note"}
+        dlg = tk.Toplevel(self.root)
+        dlg.title(titles.get(category, "Edit"))
+        dlg.geometry("480x280")
+        dlg.configure(bg=self.APP_BG)
+        dlg.transient(self.root)
+        dlg.grab_set()
+
+        ttk.Label(dlg, text="Value:", style='Normal.TLabel').pack(anchor=tk.W, padx=12, pady=(12, 2))
+        val_var = tk.StringVar(value=entry.get("value", ""))
+        ttk.Entry(dlg, textvariable=val_var, width=50).pack(fill=tk.X, padx=12)
+
+        ttk.Label(dlg, text="Note:", style='Normal.TLabel').pack(anchor=tk.W, padx=12, pady=(8, 2))
+        note_var = tk.StringVar(value=entry.get("note", ""))
+        ttk.Entry(dlg, textvariable=note_var, width=50).pack(fill=tk.X, padx=12)
+
+        ttk.Label(dlg, text="Tags (comma separated):", style='Normal.TLabel').pack(anchor=tk.W, padx=12, pady=(8, 2))
+        tags_var = tk.StringVar(value=", ".join(entry.get("tags", []) or []))
+        ttk.Entry(dlg, textvariable=tags_var, width=50).pack(fill=tk.X, padx=12)
+
+        btn_row = ttk.Frame(dlg)
+        btn_row.pack(fill=tk.X, padx=12, pady=16, side=tk.BOTTOM)
+
+        def _save():
+            val = val_var.get().strip()
+            if not val:
+                messagebox.showwarning("Required", "Value cannot be empty.", parent=dlg)
+                return
+            note = note_var.get().strip()
+            tags = [t.strip() for t in tags_var.get().split(",") if t.strip()]
+            _update_serial_note(category, idx, val, note, tags)
+            self._refresh_all_serials_tabs()
+            dlg.destroy()
+
+        ttk.Button(btn_row, text="Save", command=_save).pack(side=tk.RIGHT, padx=(6, 0))
+        ttk.Button(btn_row, text="Cancel", command=dlg.destroy).pack(side=tk.RIGHT)
+        dlg.bind('<Return>', lambda e: _save())
+
+    def _delete_note(self, tree, category):
+        """Видаляє вибрану нотатку."""
+        sel = tree.selection()
+        if not sel:
+            return
+        idx = int(sel[0])
+        if not messagebox.askyesno("Delete", "Are you sure you want to delete this entry?", parent=self._ser_win):
+            return
+        _delete_serial_note(category, idx)
+        self._refresh_all_serials_tabs()
+
+    def _clear_all_notes(self, category):
+        """Очищає всю категорію."""
+        names = {"serials": "Serials", "imeis": "IMEIs", "other": "Other"}
+        if not messagebox.askyesno("Clear All", f"Are you sure you want to clear ALL {names.get(category, category)}?", parent=self._ser_win):
+            return
+        with _ser_data_lock:
+            data = _load_serials_data()
+            data[category] = []
+            _save_serials_data(data)
+        self._refresh_all_serials_tabs()
+
+    def _copy_note_value(self, tree):
+        """Копіює значення (перша колонка) в буфер обміну."""
+        sel = tree.selection()
+        if not sel:
+            return
+        val = tree.item(sel[0], 'values')[0]
+        self.root.clipboard_clear()
+        self.root.clipboard_append(val)
+        self._ser_status_var.set(f"Copied value: {val}")
+
+    def _copy_note_row(self, tree):
+        """Копіює весь рядок в буфер обміну."""
+        sel = tree.selection()
+        if not sel:
+            return
+        vals = tree.item(sel[0], 'values')
+        text = "  •  ".join(str(v) for v in vals)
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self._ser_status_var.set("Copied full row")
+
+    def _set_as_imei(self, tree):
+        """Вставляє значення нотатки в поле IMEI головного вікна."""
+        sel = tree.selection()
+        if not sel:
+            return
+        val = tree.item(sel[0], 'values')[0]
+        self.imei_var.set(val)
+        self._ser_status_var.set(f"Set IMEI to: {val}")
+        # Підсвічуємо поле IMEI
+        self.imei_entry.focus_set()
+        self.imei_entry.selection_range(0, tk.END)
+
+    def _set_as_serial(self, tree):
+        """Вставляє значення нотатки в поле Device SN головного вікна."""
+        sel = tree.selection()
+        if not sel:
+            return
+        val = tree.item(sel[0], 'values')[0]
+        self.device_sn_var.set(val)
+        self._ser_status_var.set(f"Set Device SN to: {val}")
+        self.device_sn_entry.focus_set()
+        self.device_sn_entry.selection_range(0, tk.END)
+
+    def _import_serials(self):
+        """Імпортує нотатки з JSON-файлу."""
+        path = filedialog.askopenfilename(
+            title="Import Serials/IMEIs",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                imported = json.load(f)
+            if not isinstance(imported, dict):
+                raise ValueError("Invalid format: expected JSON object")
+            with _ser_data_lock:
+                data = _load_serials_data()
+                for cat in ("serials", "imeis", "other"):
+                    items = imported.get(cat, [])
+                    if isinstance(items, list):
+                        data[cat].extend(items)
+                _save_serials_data(data)
+            self._refresh_all_serials_tabs()
+            self._ser_status_var.set(f"Imported from {os.path.basename(path)}")
+        except Exception as e:
+            messagebox.showerror("Import Error", str(e), parent=self._ser_win)
+
+    def _export_serials(self):
+        """Експортує нотатки у JSON-файл."""
+        path = filedialog.asksaveasfilename(
+            title="Export Serials/IMEIs",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+        try:
+            data = _load_serials_data()
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            self._ser_status_var.set(f"Exported to {os.path.basename(path)}")
+        except Exception as e:
+            messagebox.showerror("Export Error", str(e), parent=self._ser_win)
+
 def parse_fingerprint(fingerprint):
     parts = fingerprint.split('/')
     if len(parts) != 6:
@@ -8076,6 +8644,7 @@ def probe_ota_url(url: str, status_cb=None, timeout: int = 15) -> dict:
         + (f", {size_human}" if size_human else "")
     )
     return result
+
 
 
 def main():
