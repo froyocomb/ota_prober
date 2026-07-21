@@ -983,6 +983,13 @@ class OTAProberGUI:
         # Підписка на зміну вкладки для приховування параметрів
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
+        # ── Serials/IMEIs pagination & sorting state ──
+        self._ser_page_size = 500
+        self._ser_pages = {"serials": 0, "imeis": 0, "other": 0}
+        self._ser_sort_col = {"serials": "value", "imeis": "value", "other": "value"}
+        self._ser_sort_dir = {"serials": "asc", "imeis": "asc", "other": "asc"}
+        self._ser_total_items = {"serials": 0, "imeis": 0, "other": 0}
+
     def _setup_layout_independent_shortcuts(self):
         """
         Робить Ctrl+C / Ctrl+V / Ctrl+X / Ctrl+A робочими незалежно від
@@ -5458,31 +5465,91 @@ class OTAProberGUI:
         self._refresh_all_serials_tabs()
 
     def _build_serials_tab(self, parent, category, value_label):
-        """Будує вміст однієї вкладки (Serials / IMEIs / Other)."""
-        # Тулбар
+        """Будує вміст однієї вкладки (Serials / IMEIs / Other) з пагінацією та сортуванням."""
+        # ── Тулбар (зверху) ──
         toolbar = ttk.Frame(parent, padding=(0, 4))
-        toolbar.pack(fill=tk.X)
+        toolbar.pack(fill=tk.X, side=tk.TOP)
         ttk.Button(toolbar, text="➕ Add", command=lambda: self._add_note_dialog(category)).pack(side=tk.LEFT, padx=3)
         ttk.Button(toolbar, text="🗑 Clear All", command=lambda: self._clear_all_notes(category)).pack(side=tk.LEFT, padx=3)
 
-        # Список нотаток (Treeview)
+        # ── Пагінація (ПІД списком, над тулбаром по ієрархії але візуально знизу) ──
+        # Спочатку створюємо фрейм пагінації, але пакуємо його ПІСЛЯ tree
+        pager_frame = ttk.Frame(parent, padding=(4, 6))
+        # НЕ пакуємо тут — пакуємо після tree
+
+        # Ліворуч: інформація про сторінку
+        page_info = ttk.Label(pager_frame, text="", font=('Arial', 9))
+        page_info.pack(side=tk.LEFT, padx=(8, 0))
+        setattr(self, f"_ser_pageinfo_{category}", page_info)
+
+        # По центру: кнопки навігації
+        nav_frame = ttk.Frame(pager_frame)
+        nav_frame.pack(side=tk.LEFT, expand=True)
+
+        first_btn = ttk.Button(nav_frame, text="⏮ First", width=7, command=lambda: self._go_to_page(category, 0))
+        first_btn.pack(side=tk.LEFT, padx=1)
+
+        prev_btn = ttk.Button(nav_frame, text="◀ Prev", width=7, command=lambda: self._prev_page(category))
+        prev_btn.pack(side=tk.LEFT, padx=1)
+
+        page_entry_var = tk.StringVar(value="1")
+        page_entry = ttk.Entry(nav_frame, textvariable=page_entry_var, width=6, justify=tk.CENTER)
+        page_entry.pack(side=tk.LEFT, padx=4)
+        setattr(self, f"_ser_pageentry_{category}", page_entry_var)
+
+        go_btn = ttk.Button(nav_frame, text="Go", width=4, command=lambda: self._jump_to_page(category))
+        go_btn.pack(side=tk.LEFT, padx=1)
+
+        next_btn = ttk.Button(nav_frame, text="Next ▶", width=7, command=lambda: self._next_page(category))
+        next_btn.pack(side=tk.LEFT, padx=1)
+
+        last_btn = ttk.Button(nav_frame, text="Last ⏭", width=7, command=lambda: self._go_to_last_page(category))
+        last_btn.pack(side=tk.LEFT, padx=1)
+
+        # Збереження посилань на кнопки для оновлення стану
+        setattr(self, f"_ser_firstbtn_{category}", first_btn)
+        setattr(self, f"_ser_prevbtn_{category}", prev_btn)
+        setattr(self, f"_ser_nextbtn_{category}", next_btn)
+        setattr(self, f"_ser_lastbtn_{category}", last_btn)
+
+        # Праворуч: розмір сторінки
+        size_frame = ttk.Frame(pager_frame)
+        size_frame.pack(side=tk.RIGHT, padx=(0, 8))
+        ttk.Label(size_frame, text="Per page:", font=('Arial', 8)).pack(side=tk.LEFT)
+        size_var = tk.StringVar(value="500")
+        size_combo = ttk.Combobox(size_frame, textvariable=size_var, width=6, values=["50", "100", "250", "500", "1000"], state="readonly")
+        size_combo.pack(side=tk.LEFT, padx=(4, 0))
+        size_combo.bind('<<ComboboxSelected>>', lambda e, c=category: self._change_page_size(c))
+        setattr(self, f"_ser_pagesizevar_{category}", size_var)
+
+        # ── Список нотаток (Treeview з сортуванням по кліку) ──
+        # Використовуємо окремий фрейм для treeview щоб контролювати розміщення
+        tree_frame = ttk.Frame(parent)
+        tree_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
+
         cols = ("value", "note", "tags", "modified")
-        tree = ttk.Treeview(parent, columns=cols, show="headings")
-        tree.heading("value", text=value_label)
-        tree.heading("note", text="Note / Description")
-        tree.heading("tags", text="Tags")
-        tree.heading("modified", text="Modified")
+        tree = ttk.Treeview(tree_frame, columns=cols, show="headings")
+
+        # Заголовки з можливістю сортування
+        tree.heading("value", text=value_label, command=lambda: self._sort_serials(category, "value"))
+        tree.heading("note", text="Note / Description", command=lambda: self._sort_serials(category, "note"))
+        tree.heading("tags", text="Tags", command=lambda: self._sort_serials(category, "tags"))
+        tree.heading("modified", text="Modified", command=lambda: self._sort_serials(category, "modified"))
+
         tree.column("value", width=180, stretch=False)
         tree.column("note", width=400, stretch=True)
         tree.column("tags", width=150, stretch=False)
         tree.column("modified", width=130, stretch=False)
 
-        vsb = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=tree.yview)
+        vsb = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=tree.yview)
         tree.configure(yscrollcommand=vsb.set)
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Контекстне меню
+        # ── Тепер пакуємо пагінацію ПІД деревом ──
+        pager_frame.pack(fill=tk.X, side=tk.BOTTOM)
+
+        # ── Контекстне меню ──
         menu = tk.Menu(tree, tearoff=0)
         menu.add_command(label="📋 Copy value", command=lambda: self._copy_note_value(tree))
         menu.add_command(label="📋 Copy row", command=lambda: self._copy_note_row(tree))
@@ -5491,7 +5558,6 @@ class OTAProberGUI:
         menu.add_command(label="🗑 Delete", command=lambda: self._delete_note(tree, category))
         menu.add_separator()
 
-        # Автозаповнення — динамічно залежить від категорії
         if category == "imeis":
             menu.add_command(label="➡️ Set as IMEI", command=lambda: self._set_as_imei(tree))
         elif category == "serials":
@@ -5509,19 +5575,24 @@ class OTAProberGUI:
         tree.bind('<Button-3>', _on_right_click)
         tree.bind('<Double-Button-1>', lambda e: self._edit_note_dialog(tree, category))
 
-        # Збереження посилання
         setattr(self, f"_ser_tree_{category}", tree)
 
     def _refresh_all_serials_tabs(self):
-        """Оновлює всі три вкладки з урахуванням пошуку."""
+        """Оновлює всі три вкладки з урахуванням пошуку, сортування та пагінації."""
         query = (self._ser_search_var.get() or "").strip().lower()
         data = _load_serials_data()
+
         for category in ("serials", "imeis", "other"):
             tree = getattr(self, f"_ser_tree_{category}", None)
             if tree is None:
                 continue
+
+            # Очищаємо дерево
             for ch in tree.get_children():
                 tree.delete(ch)
+
+            # Збираємо всі записи з урахуванням пошуку
+            all_entries = []
             for idx, entry in enumerate(data.get(category, [])):
                 value = entry.get("value", "")
                 note = entry.get("note", "")
@@ -5531,9 +5602,150 @@ class OTAProberGUI:
                     haystack = f"{value} {note} {tags}".lower()
                     if query not in haystack:
                         continue
-                tree.insert("", tk.END, iid=str(idx), values=(value, note, tags, modified))
+                all_entries.append({
+                    "idx": idx,
+                    "value": value,
+                    "note": note,
+                    "tags": tags,
+                    "modified": modified,
+                    "created": entry.get("created", ""),
+                })
+
+            # Сортування
+            sort_col = self._ser_sort_col.get(category, "value")
+            sort_dir = self._ser_sort_dir.get(category, "asc")
+            reverse = (sort_dir == "desc")
+
+            if sort_col == "value":
+                all_entries.sort(key=lambda x: x["value"].lower(), reverse=reverse)
+            elif sort_col == "note":
+                all_entries.sort(key=lambda x: x["note"].lower(), reverse=reverse)
+            elif sort_col == "tags":
+                all_entries.sort(key=lambda x: x["tags"].lower(), reverse=reverse)
+            elif sort_col == "modified":
+                all_entries.sort(key=lambda x: x["modified"], reverse=reverse)
+
+            # Зберігаємо загальну кількість
+            self._ser_total_items[category] = len(all_entries)
+
+            # Пагінація
+            page_size = self._ser_page_size
+            total_pages = max(1, (len(all_entries) + page_size - 1) // page_size)
+            current_page = min(self._ser_pages.get(category, 0), total_pages - 1)
+            self._ser_pages[category] = current_page
+
+            start = current_page * page_size
+            end = min(start + page_size, len(all_entries))
+            page_entries = all_entries[start:end]
+
+            # Відображаємо записи поточної сторінки
+            for entry in page_entries:
+                tree.insert("", tk.END, iid=str(entry["idx"]), values=(
+                    entry["value"], entry["note"], entry["tags"], entry["modified"]
+                ))
+
+            # Оновлюємо інформацію про сторінку
+            page_info = getattr(self, f"_ser_pageinfo_{category}", None)
+            if page_info:
+                showing = len(page_entries)
+                total = len(all_entries)
+                page_info.config(text=f"Page {current_page + 1} of {total_pages}  |  Showing {showing} of {total} entries")
+
+            # Оновлюємо поле вводу номера сторінки
+            page_entry_var = getattr(self, f"_ser_pageentry_{category}", None)
+            if page_entry_var:
+                page_entry_var.set(str(current_page + 1))
+
+            # Оновлюємо стан кнопок
+            first_btn = getattr(self, f"_ser_firstbtn_{category}", None)
+            prev_btn = getattr(self, f"_ser_prevbtn_{category}", None)
+            next_btn = getattr(self, f"_ser_nextbtn_{category}", None)
+            last_btn = getattr(self, f"_ser_lastbtn_{category}", None)
+
+            if first_btn:
+                first_btn.config(state=tk.DISABLED if current_page == 0 else tk.NORMAL)
+            if prev_btn:
+                prev_btn.config(state=tk.DISABLED if current_page == 0 else tk.NORMAL)
+            if next_btn:
+                next_btn.config(state=tk.DISABLED if current_page >= total_pages - 1 else tk.NORMAL)
+            if last_btn:
+                last_btn.config(state=tk.DISABLED if current_page >= total_pages - 1 else tk.NORMAL)
+
         total = sum(len(data.get(c, [])) for c in ("serials", "imeis", "other"))
-        self._ser_status_var.set(f"Total entries: {total}  •  Click right mouse button on row for actions")
+        self._ser_status_var.set(f"Total entries: {total}  •  Click right mouse button on row for actions  •  Click column header to sort")
+
+    def _sort_serials(self, category, column):
+        """Змінює сортування по кліку на заголовок колонки."""
+        current_col = self._ser_sort_col.get(category, "value")
+        current_dir = self._ser_sort_dir.get(category, "asc")
+
+        if current_col == column:
+            # Перемикаємо напрямок
+            self._ser_sort_dir[category] = "desc" if current_dir == "asc" else "asc"
+        else:
+            # Нова колонка — за замовчуванням asc
+            self._ser_sort_col[category] = column
+            self._ser_sort_dir[category] = "asc"
+
+        # Скидаємо на першу сторінку при зміні сортування
+        self._ser_pages[category] = 0
+        self._refresh_all_serials_tabs()
+
+    def _go_to_page(self, category, page):
+        """Переходить на вказану сторінку."""
+        self._ser_pages[category] = page
+        self._refresh_all_serials_tabs()
+
+    def _prev_page(self, category):
+        """Попередня сторінка."""
+        current = self._ser_pages.get(category, 0)
+        if current > 0:
+            self._ser_pages[category] = current - 1
+            self._refresh_all_serials_tabs()
+
+    def _next_page(self, category):
+        """Наступна сторінка."""
+        current = self._ser_pages.get(category, 0)
+        self._ser_pages[category] = current + 1
+        self._refresh_all_serials_tabs()
+
+    def _go_to_last_page(self, category):
+        """Остання сторінка."""
+        total = self._ser_total_items.get(category, 0)
+        page_size = self._ser_page_size
+        last_page = max(0, (total + page_size - 1) // page_size - 1)
+        self._ser_pages[category] = last_page
+        self._refresh_all_serials_tabs()
+
+    def _jump_to_page(self, category):
+        """Перехід на сторінку з поля вводу."""
+        page_entry_var = getattr(self, f"_ser_pageentry_{category}", None)
+        if page_entry_var is None:
+            return
+        try:
+            page = int(page_entry_var.get()) - 1  # 0-based
+            total = self._ser_total_items.get(category, 0)
+            page_size = self._ser_page_size
+            total_pages = max(1, (total + page_size - 1) // page_size)
+            page = max(0, min(page, total_pages - 1))
+            self._ser_pages[category] = page
+            self._refresh_all_serials_tabs()
+        except ValueError:
+            pass
+
+    def _change_page_size(self, category):
+        """Змінює розмір сторінки."""
+        size_var = getattr(self, f"_ser_pagesizevar_{category}", None)
+        if size_var is None:
+            return
+        try:
+            new_size = int(size_var.get())
+            if new_size > 0:
+                self._ser_page_size = new_size
+                self._ser_pages[category] = 0  # Скидаємо на першу сторінку
+                self._refresh_all_serials_tabs()
+        except ValueError:
+            pass
 
     def _add_note_dialog(self, category):
         """Діалог додавання нової нотатки (підтримує batch-введення)."""
