@@ -13,18 +13,14 @@
     },
     {
       "value": "5A011JCA7114R00203",
-      "note": "Gives an internal BGQ1.260312.001 userdebug/test-keys OTA for Google Glass devices",
+      "note": "Gives an internal BGQ1.260312.001 userdebug/test-keys OTA for Google Glass",
       "tags": [
         "Google Glass",
-        "arrow",
-        "barney",
-        "betty",
         "harriet",
-        "martha",
         "test-keys"
       ],
       "created": "2026-07-21 00:18:10",
-      "modified": "2026-07-21 00:27:00"
+      "modified": "2026-07-21 15:29:15"
     },
     {
       "value": "49281JEBF00071",
@@ -6025,6 +6021,46 @@
       ],
       "created": "2026-07-21 00:41:34",
       "modified": "2026-07-21 00:41:34"
+    },
+    {
+      "value": "U1L35BH1186177",
+      "note": "Gives an internal UXP1.260422.003.A4 userdebug/test-keys OTA for robin",
+      "tags": [
+        "robin",
+        "test-keys"
+      ],
+      "created": "2026-07-21 15:32:55",
+      "modified": "2026-07-21 15:33:42"
+    },
+    {
+      "value": "U1L35BH1186189",
+      "note": "Gives an internal UXP1.260422.003.A3 userdebug/test-keys OTA for robin",
+      "tags": [
+        "robin",
+        "test-keys"
+      ],
+      "created": "2026-07-21 15:34:28",
+      "modified": "2026-07-21 15:34:53"
+    },
+    {
+      "value": "U1L35BH1186188",
+      "note": "Gives an internal UXP1.260422.003.A3 userdebug/test-keys OTA for robin",
+      "tags": [
+        "robin",
+        "test-keys"
+      ],
+      "created": "2026-07-21 15:36:38",
+      "modified": "2026-07-21 15:37:01"
+    },
+    {
+      "value": "U1L35BH1186185",
+      "note": "Gives an internal UXP1.260422.003.A3 userdebug/test-keys OTA for robin",
+      "tags": [
+        "robin",
+        "test-keys"
+      ],
+      "created": "2026-07-21 15:37:33",
+      "modified": "2026-07-21 15:38:00"
     }
   ],
   "imeis": [
