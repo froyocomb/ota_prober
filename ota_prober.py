@@ -621,7 +621,7 @@ CROS_AUSERVER = 'https://tools.google.com/service/update2'
 # =========================================================================
 #  ДОДАТКОВА ФУНКЦІЯ ДЛЯ ОТРИМАННЯ ZIP ДЕРЕВА
 # =========================================================================
-def fetch_zip_tree(url, status_cb=None, timeout=30):
+def fetch_zip_tree(url, token="", status_cb=None, timeout=30):
     """
     Завантажує центральний каталог ZIP-файлу (без повного завантаження)
     і повертає список словників з інформацією про кожен запис.
@@ -632,10 +632,13 @@ def fetch_zip_tree(url, status_cb=None, timeout=30):
 
     # 1. Отримати розмір файлу через HEAD
     try:
-        head_req = urllib.request.Request(url, method='HEAD', headers={
+        head_headers = {
             'User-Agent': 'AndroidDownloadManager/14',
             'Accept-Encoding': 'identity',
-        })
+        }
+        if token:
+            head_headers['Authorization'] = token
+        head_req = urllib.request.Request(url, method='HEAD', headers=head_headers)
         ctx = ssl.create_default_context()
         with urllib.request.urlopen(head_req, timeout=timeout, context=ctx) as resp:
             total_size = int(resp.headers.get('Content-Length', '0') or '0')
@@ -652,11 +655,14 @@ def fetch_zip_tree(url, status_cb=None, timeout=30):
     _s(f"Fetching last {chunk_size//1024} KB...")
 
     try:
-        req = urllib.request.Request(url, headers={
+        range_headers = {
             'User-Agent': 'AndroidDownloadManager/14',
             'Accept-Encoding': 'identity',
             'Range': range_hdr,
-        })
+        }
+        if token:
+            range_headers['Authorization'] = token
+        req = urllib.request.Request(url, headers=range_headers)
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
             tail_data = resp.read()
     except Exception as e:
@@ -686,11 +692,14 @@ def fetch_zip_tree(url, status_cb=None, timeout=30):
         # Завантажити потрібний діапазон
         range_hdr = f'bytes={cd_start}-{cd_end-1}'
         _s(f"Fetching central directory ({cd_size} bytes)...")
-        req = urllib.request.Request(url, headers={
+        range_headers = {
             'User-Agent': 'AndroidDownloadManager/14',
             'Accept-Encoding': 'identity',
             'Range': range_hdr,
-        })
+        }
+        if token:
+            range_headers['Authorization'] = token
+        req = urllib.request.Request(url, headers=range_headers)
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
             cd_data = resp.read()
 
@@ -1665,6 +1674,16 @@ class OTAProberGUI:
                     self.imei_label.grid()
                     self.imei_entry.grid()
 
+        # Show/hide HTTP Info token field based on OS mode (Android only)
+        if hasattr(self, 'httpinfo_token_label'):
+            if is_cros or is_xiaomi:
+                self.httpinfo_token_label.pack_forget()
+                self.httpinfo_token_entry.pack_forget()
+            else:
+                # Re-pack after URL entry and before Fetch button
+                self.httpinfo_token_label.pack(side=tk.LEFT, padx=(0, 4), before=self.httpinfo_fetch_btn)
+                self.httpinfo_token_entry.pack(side=tk.LEFT, padx=(0, 8), before=self.httpinfo_fetch_btn)
+
     # ── Locale ↔ Timezone auto-fill ──────────────────────────────────────
     def _on_locale_selected(self, event):
         loc = self.locale_var.get().strip()
@@ -1756,6 +1775,12 @@ class OTAProberGUI:
         self.httpinfo_url_var = tk.StringVar()
         ttk.Entry(url_lf, textvariable=self.httpinfo_url_var,
                   font=('Courier', 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        self.httpinfo_token_label = ttk.Label(url_lf, text="Token:", font=('Courier', 9))
+        self.httpinfo_token_label.pack(side=tk.LEFT, padx=(0, 4))
+        self.httpinfo_token_var = tk.StringVar()
+        self.httpinfo_token_entry = ttk.Entry(url_lf, textvariable=self.httpinfo_token_var, width=18,
+                  font=('Courier', 9))
+        self.httpinfo_token_entry.pack(side=tk.LEFT, padx=(0, 8))
         self.httpinfo_fetch_btn = ttk.Button(url_lf, text="▶  Fetch",
                                              command=self._httpinfo_start)
         self.httpinfo_fetch_btn.pack(side=tk.LEFT)
@@ -2024,6 +2049,7 @@ class OTAProberGUI:
             messagebox.showerror("HTTP Info", "Please enter an OTA URL first.")
             return
 
+        token = self.httpinfo_token_var.get().strip()
         is_local = bool(self.httpinfo_local_path) and self.httpinfo_local_path == url
 
         try:
@@ -2051,7 +2077,7 @@ class OTAProberGUI:
             self.hi_altnames_status_var.set("Not applicable for local files.")
 
             self._httpinfo_last_result = None
-            threading.Thread(target=self._httpinfo_metadata_worker, args=(url,), daemon=True).start()
+            threading.Thread(target=self._httpinfo_metadata_worker, args=(url, token), daemon=True).start()
 
         elif current_tab_text in ("Payload Metadata", "Alternative Filenames"):
             # Scan the currently-active tab (metadata / alternative names)
@@ -2085,22 +2111,22 @@ class OTAProberGUI:
             self._httpinfo_shared_meta_event = threading.Event()
             self._httpinfo_shared_meta_result = {}
 
-            threading.Thread(target=self._httpinfo_metadata_worker, args=(url,), daemon=True).start()
-            threading.Thread(target=self._httpinfo_altnames_worker, args=(url,), daemon=True).start()
+            threading.Thread(target=self._httpinfo_metadata_worker, args=(url, token), daemon=True).start()
+            threading.Thread(target=self._httpinfo_altnames_worker, args=(url, token), daemon=True).start()
             # Runs concurrently in the background; the general/headers/etc.
             # trees just get filled in whenever this finishes, without
             # blocking or reordering the metadata/altnames scan above.
-            threading.Thread(target=self._httpinfo_worker, args=(url,), daemon=True).start()
+            threading.Thread(target=self._httpinfo_worker, args=(url, token), daemon=True).start()
 
         else:
             self.httpinfo_status_var.set("Probing…")
             self._httpinfo_pending_jobs = 1
             self._httpinfo_last_result = None
-            threading.Thread(target=self._httpinfo_worker, args=(url,), daemon=True).start()
+            threading.Thread(target=self._httpinfo_worker, args=(url, token), daemon=True).start()
 
-    def _httpinfo_worker(self, url):
+    def _httpinfo_worker(self, url, token=""):
         try:
-            result = probe_ota_url(url, status_cb=lambda m: self.root.after(
+            result = probe_ota_url(url, token=token, status_cb=lambda m: self.root.after(
                 0, self.httpinfo_status_var.set, m))
             self._httpinfo_last_result = result
             self.root.after(0, self._httpinfo_display, result)
@@ -2118,12 +2144,12 @@ class OTAProberGUI:
             if current in ("Fetching metadata and alternative filenames…", "Probing…"):
                 self.httpinfo_status_var.set("")
 
-    def _httpinfo_metadata_worker(self, url):
+    def _httpinfo_metadata_worker(self, url, token=""):
         try:
             is_local = bool(self.httpinfo_local_path) and self.httpinfo_local_path == url
             # Запитуємо метадані з поверненням сирих даних хвоста
             result = fetch_payload_metadata(
-                url, status_cb=lambda m: self.root.after(0, self.hi_metadata_status_var.set, m),
+                url, token=token, status_cb=lambda m: self.root.after(0, self.hi_metadata_status_var.set, m),
                 return_raw_tail=True,
                 local_path=url if is_local else None)
             meta = result['metadata']
@@ -2237,7 +2263,7 @@ class OTAProberGUI:
 
         return entries
 
-    def _httpinfo_altnames_worker(self, url):
+    def _httpinfo_altnames_worker(self, url, token=""):
         if not self.hi_altnames_enabled_var.get():
             self.root.after(0, self._httpinfo_display_altnames,
                              {'checked': False, 'reason': 'Alternative filename checking is disabled.', 'results': []})
@@ -2266,7 +2292,7 @@ class OTAProberGUI:
             # (no sibling metadata_worker running), e.g. programmatic
             # reuse — fetch directly rather than blocking forever.
             try:
-                meta = fetch_payload_metadata(url)  # без raw tail
+                meta = fetch_payload_metadata(url, token=token)  # без raw tail
             except Exception:
                 meta = {}
 
@@ -2299,12 +2325,12 @@ class OTAProberGUI:
             # variants), no metadata or fingerprints required — this is
             # what lets pasting either the long descriptive URL or the
             # bare sha1.zip URL find the "other" form of the same file.
-            direct = probe_direct_url_alternate(url, status_cb=status_cb, max_workers=max_workers)
+            direct = probe_direct_url_alternate(url, token=token, status_cb=status_cb, max_workers=max_workers)
 
             pre_fp = meta.get('fields', {}).get('pre-build') or self.current_ota_precondition
             post_fp = meta.get('fields', {}).get('post-build') or self.current_ota_postcondition
             alt = probe_alternative_filenames(
-                url, last_modified, pre_fp, post_fp, status_cb=status_cb, max_workers=max_workers)
+                url, last_modified, pre_fp, post_fp, token=token, status_cb=status_cb, max_workers=max_workers)
 
             # Merge results, direct URL-based hits first, de-duplicated by
             # URL so the same working link never appears twice even if
@@ -2448,6 +2474,8 @@ class OTAProberGUI:
             messagebox.showerror("ZIP Tree", "Please enter an OTA URL first.")
             return
 
+        token = self.httpinfo_token_var.get().strip()
+
         # Очистити попереднє дерево
         for child in self.zip_tree.get_children():
             self.zip_tree.delete(child)
@@ -2455,9 +2483,9 @@ class OTAProberGUI:
         self.httpinfo_progress.start(12)
         self.httpinfo_fetch_btn.config(state=tk.DISABLED)
 
-        threading.Thread(target=self._httpinfo_zip_tree_worker, args=(url,), daemon=True).start()
+        threading.Thread(target=self._httpinfo_zip_tree_worker, args=(url, token), daemon=True).start()
 
-    def _httpinfo_zip_tree_worker(self, url):
+    def _httpinfo_zip_tree_worker(self, url, token=""):
         # Перевіряємо кеш
         entries = None
         is_local = bool(self.httpinfo_local_path) and self.httpinfo_local_path == url
@@ -2473,7 +2501,7 @@ class OTAProberGUI:
                     )
                 else:
                     entries = fetch_zip_tree(
-                        url,
+                        url, token=token,
                         status_cb=lambda m: self.root.after(0, self.zip_tree_status_var.set, m)
                     )
                 # Зберігаємо в кеш
@@ -4724,8 +4752,10 @@ class OTAProberGUI:
         except Exception as e:
             self.update_status(f"Failed to copy: {e}", 'error')
 
-    def _meta_autofill_url(self, url: str):
+    def _meta_autofill_url(self, url: str, token: str = ""):
         self.httpinfo_url_var.set(url)
+        if token:
+            self.httpinfo_token_var.set(token)
 
     def on_query_click(self):
         fingerprint = self.fingerprint_var.get().strip()
@@ -4773,6 +4803,7 @@ class OTAProberGUI:
             imei = getattr(self, 'imei_var', tk.StringVar()).get().strip()
 
             settings, raw_bytes = perform_checkin(fingerprint, locale, timezone, device_sn, imei)
+            self._last_query_token = settings.get('update_token', '') if settings else ''
 
             if not settings:
                 self.log_output("ERROR: Check-in failed - No response from server", 'error')
@@ -4864,6 +4895,7 @@ class OTAProberGUI:
 
             self.update_status("Sending Omaha check-in request...")
             response_text, raw_bytes = perform_checkin_chromeos(fingerprint, app_id, hardware_class=parsed['hwid'])
+            self._last_query_token = ''
 
             if not response_text:
                 self.log_output("ERROR: Check-in failed - No response from server", 'error')
@@ -4962,6 +4994,7 @@ class OTAProberGUI:
             decrypted, raw_text = perform_checkin_xiaomi(
                 parsed['codename'], parsed['rom_version'], parsed['android_version']
             )
+            self._last_query_token = ''
 
             if not decrypted:
                 self.log_output("ERROR: Check-in failed - No response from server", 'error')
@@ -5157,7 +5190,7 @@ class OTAProberGUI:
             self.current_ota_postcondition = ota_link.get('postcondition', '')
             self._set_ota_link_header(ota_link['url'])
             self.copy_link_button.config(state=tk.NORMAL)
-            self._meta_autofill_url(ota_link['url'])
+            self._meta_autofill_url(ota_link['url'], settings.get('update_token', ''))
 
             try:
                 add_ota_record(
@@ -6065,11 +6098,7 @@ class OTAProberGUI:
         token_frame.pack(fill=tk.X, pady=(0, 6))
         ttk.Label(token_frame, text="Auth Token:", style='Normal.TLabel', width=12).pack(side=tk.LEFT)
         self._download_token_var = tk.StringVar()
-        token_entry = ttk.Entry(token_frame, textvariable=self._download_token_var, font=('Courier', 9), show='•')
-        token_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
-        self._download_show_token_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(token_frame, text="Show", variable=self._download_show_token_var,
-                        command=lambda: token_entry.config(show='' if self._download_show_token_var.get() else '•')).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Entry(token_frame, textvariable=self._download_token_var, font=('Courier', 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
 
         # ── Save path ──
         path_frame = ttk.Frame(top)
@@ -6113,13 +6142,16 @@ class OTAProberGUI:
         self._download_ota_window = win
         self._download_stop_event.clear()
 
-        # Pre-fill URL if we have a current OTA link
+        # Pre-fill URL and token if we have a current OTA link
         if self.current_ota_link:
             self._download_url_var.set(self.current_ota_link)
             # Auto-suggest filename from URL
             parsed = urlparse(self.current_ota_link)
             fname = parsed.path.rsplit('/', 1)[-1] or 'ota_package.zip'
             self._download_path_var.set(os.path.join(os.path.expanduser('~'), 'Downloads', fname))
+        # Pre-fill token from the last query response (if any)
+        if hasattr(self, '_last_query_token') and self._last_query_token:
+            self._download_token_var.set(self._last_query_token)
 
     def _download_browse_path(self):
         """Відкриває діалог вибору файлу для збереження."""
@@ -7863,7 +7895,7 @@ def _fetch_metadata_precise_via_eocd(_get_range, _s, total_size, out, errors):
         return False
 
 
-def _fetch_payload_metadata_inner(url: str, status_cb=None, timeout: int = 30,
+def _fetch_payload_metadata_inner(url: str, token: str = "", status_cb=None, timeout: int = 30,
                             chunk_bytes: int = 2 * 1024 * 1024,
                             return_raw_tail: bool = False,
                             local_path: str = None):
@@ -7912,20 +7944,26 @@ def _fetch_payload_metadata_inner(url: str, status_cb=None, timeout: int = 30,
             return os.path.getsize(local_path)
     else:
         def _get_range(range_header):
-            req = urllib.request.Request(url, headers={
+            req_headers = {
                 'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
                 'Accept-Encoding': 'identity',
                 'Range': range_header,
-            })
+            }
+            if token:
+                req_headers['Authorization'] = token
+            req = urllib.request.Request(url, headers=req_headers)
             ctx = ssl.create_default_context()
             with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
                 return resp.read()
 
         def _head_size():
-            head_req = urllib.request.Request(url, method='HEAD', headers={
+            head_headers = {
                 'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
                 'Accept-Encoding': 'identity',
-            })
+            }
+            if token:
+                head_headers['Authorization'] = token
+            head_req = urllib.request.Request(url, method='HEAD', headers=head_headers)
             ctx = ssl.create_default_context()
             with urllib.request.urlopen(head_req, timeout=timeout, context=ctx) as resp:
                 return int(resp.headers.get('Content-Length', '0') or '0')
@@ -8399,7 +8437,7 @@ def _fetch_radio_versions_baseband(url, tail_data, tail_offset, local_path=None,
         return None
 
 
-def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
+def fetch_payload_metadata(url: str, token: str = "", status_cb=None, timeout: int = 30,
                             chunk_bytes: int = 2 * 1024 * 1024,
                             return_raw_tail: bool = False,
                             local_path: str = None):
@@ -8417,7 +8455,7 @@ def fetch_payload_metadata(url: str, status_cb=None, timeout: int = 30,
     # round-trip. We strip tail_data back out again at the end unless the
     # caller actually asked for return_raw_tail=True.
     result = _fetch_payload_metadata_inner(
-        url, status_cb=status_cb, timeout=timeout,
+        url, token=token, status_cb=status_cb, timeout=timeout,
         chunk_bytes=chunk_bytes, return_raw_tail=True,
         local_path=local_path)
 
@@ -8628,7 +8666,7 @@ def _parse_ota_suffix_core(core: str):
     return m.group('device'), m.group('post'), m.group('pre')
 
 
-def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12, max_workers: int = 40):
+def probe_direct_url_alternate(url: str, token: str = "", status_cb=None, timeout: int = 12, max_workers: int = 40):
     """
     Directly inspect the *given* URL's filename (no metadata / fingerprint
     lookups needed) and check other forms of it against the server:
@@ -8730,7 +8768,7 @@ def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12, max_
 
         _s("Trying short (bare sha1) and alternate long-form variants…")
         out['checked'] = True
-        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
+        out['results'] = check_alternative_ota_names(base_prefix, candidates, token=token, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
         return out
 
     # Not long-form: is it a bare sha1.zip (full 40-char or short 8-40 char
@@ -8786,7 +8824,7 @@ def probe_direct_url_alternate(url: str, status_cb=None, timeout: int = 12, max_
 
     _s("Trying long (descriptive) form, including doubled-sha1 variant…")
     out['checked'] = True
-    out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
+    out['results'] = check_alternative_ota_names(base_prefix, candidates, token=token, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
     return out
 
 
@@ -8891,7 +8929,7 @@ def build_alternative_filenames(sha1: str, device: str, post_build_id: str,
     return names
 
 
-def check_alternative_ota_names(base_prefix: str, candidates: list, status_cb=None, timeout: int = 12,
+def check_alternative_ota_names(base_prefix: str, candidates: list, token: str = "", status_cb=None, timeout: int = 12,
                                  max_workers: int = 40, max_retries: int = 1):
     """Check each candidate filename against base_prefix, up to
     `max_workers` (default 40) requests in flight at once, and return the
@@ -8918,11 +8956,14 @@ def check_alternative_ota_names(base_prefix: str, candidates: list, status_cb=No
     def _attempt_once(candidate_url):
         """Returns (working: bool, is_definitive_404: bool)."""
         try:
-            req = urllib.request.Request(candidate_url, method='GET', headers={
+            req_headers = {
                 'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
                 'Accept-Encoding': 'identity',
                 'Range': 'bytes=0-0',
-            })
+            }
+            if token:
+                req_headers['Authorization'] = token
+            req = urllib.request.Request(candidate_url, method='GET', headers=req_headers)
             ctx = ssl.create_default_context()
             with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
                 return resp.getcode() in (200, 206), False
@@ -8968,7 +9009,7 @@ def check_alternative_ota_names(base_prefix: str, candidates: list, status_cb=No
 
 def probe_alternative_filenames(url: str, last_modified: str,
                                  pre_build_fingerprint: str, post_build_fingerprint: str,
-                                 status_cb=None, timeout: int = 12, max_workers: int = 40):
+                                 token: str = "", status_cb=None, timeout: int = 12, max_workers: int = 40):
     """
     If the OTA link's Last-Modified date matches the legacy naming era
     (Mon, 16 May 2016), try substituting a set of historically-known
@@ -9021,7 +9062,7 @@ def probe_alternative_filenames(url: str, last_modified: str,
             return out
         out['checked'] = True
         _s("Checking trimmed sha1.zip variant…")
-        out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
+        out['results'] = check_alternative_ota_names(base_prefix, candidates, token=token, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
         return out
 
     # For a bare sha1.zip-style URL there's no naming-scheme hint in the
@@ -9071,7 +9112,7 @@ def probe_alternative_filenames(url: str, last_modified: str,
 
     out['checked'] = True
     _s(f"Checking {len(candidates)} alternative filename(s)…")
-    out['results'] = check_alternative_ota_names(base_prefix, candidates, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
+    out['results'] = check_alternative_ota_names(base_prefix, candidates, token=token, status_cb=status_cb, timeout=timeout, max_workers=max_workers)
 
     # If nothing worked and this is a plain sha1.zip whose Last-Modified
     # date matches the legacy (16 May 2016) naming era, alternative names
@@ -9089,7 +9130,7 @@ def probe_alternative_filenames(url: str, last_modified: str,
 
 # ── HTTP Info prober ──────────────────────────────────────────────────────
 
-def probe_ota_url(url: str, status_cb=None, timeout: int = 15) -> dict:
+def probe_ota_url(url: str, token: str = "", status_cb=None, timeout: int = 15) -> dict:
     def _s(msg):
         if status_cb:
             status_cb(msg)
@@ -9161,11 +9202,14 @@ def probe_ota_url(url: str, status_cb=None, timeout: int = 15) -> dict:
                 result['security'].append(('Protocol', 'HTTP (no TLS)'))
                 tls_done = True
 
-            conn.request('HEAD', path, headers={
+            req_headers = {
                 'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
                 'Accept-Encoding': 'identity',
                 'Connection': 'close',
-            })
+            }
+            if token:
+                req_headers['Authorization'] = token
+            conn.request('HEAD', path, headers=req_headers)
             resp = conn.getresponse()
             t_ttfb = (time.perf_counter() - t0) * 1000
 
