@@ -1125,7 +1125,7 @@ class OTAProberGUI:
         self.history_button.pack(side=tk.RIGHT, padx=(6, 0))
 
         self.additional_features_button = ttk.Button(
-            history_frame, text="🧩 Additional Features",
+            history_frame, text="🧩 Scan URLs",
             command=self.open_additional_features_window)
         self.additional_features_button.pack(side=tk.RIGHT, padx=(6, 0))
 
@@ -3794,18 +3794,18 @@ class OTAProberGUI:
         ]).lower()
         return q in haystack
 
-    # ── Additional Features / Scan URLs (batch metadata -> global.txt) ──
+    # ── Scan URLs (batch metadata -> global.txt) ──
 
     def open_additional_features_window(self):
         win = tk.Toplevel(self.root)
-        win.title("Additional Features")
+        win.title("Scan URLs")
         win.geometry("620x480")
         win.configure(bg=self.APP_BG)
 
         top = ttk.Frame(win, padding=12)
         top.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(top, text="Additional Features", style='Header.TLabel').pack(anchor=tk.W, pady=(0, 10))
+        ttk.Label(top, text="Scan URLs", style='Header.TLabel').pack(anchor=tk.W, pady=(0, 10))
 
         desc = ttk.Label(
             top,
@@ -7495,6 +7495,79 @@ def _extract_version_baseband(blob: bytes):
     return None
 
 
+def _find_zip_update_script_entry(tail_blob: bytes, tail_offset: int):
+    """
+    Look for a 'META-INF/com/google/android/update-script' file in the
+    central directory. This is the legacy (pre-Edify) Android update
+    script format; older OTA packages that don't ship a
+    META-INF/com/android/metadata file sometimes still carry build
+    fingerprints embedded in an `assert file_contains(...)` line at the
+    top of this script. Returns (local_header_offset, compressed_size,
+    compression_method, file_name) or None if not found.
+    """
+    return _find_zip_entry_by_predicate(
+        tail_blob, tail_offset,
+        lambda name: name == b'META-INF/com/google/android/update-script')
+
+
+# Matches lines like:
+#   assert file_contains("SYSTEM:build.prop", "ro.build.fingerprint=<PRE>") == "true" ||
+#          file_contains("SYSTEM:build.prop", "ro.build.fingerprint=<POST>") == "true"
+# The pre-build fingerprint is the first file_contains(...) operand, the
+# post-build fingerprint is the second (joined by the "||" OR operator),
+# following the same pre/post ordering convention used elsewhere in this
+# file for META-INF/com/android/metadata's pre-build/post-build fields.
+_UPDATE_SCRIPT_ASSERT_RE = re.compile(
+    r'assert\s+file_contains\s*\(\s*"[^"]*build\.prop"\s*,\s*'
+    r'"ro\.build\.fingerprint=([^"]+)"\s*\)\s*==\s*"true"'
+    r'(?:\s*\|\|\s*file_contains\s*\(\s*"[^"]*build\.prop"\s*,\s*'
+    r'"ro\.build\.fingerprint=([^"]+)"\s*\)\s*==\s*"true")?',
+    re.IGNORECASE
+)
+
+
+def _extract_update_script_fingerprints(blob: bytes):
+    """
+    Scan a decompressed META-INF/com/google/android/update-script for the
+    leading `assert file_contains("SYSTEM:build.prop", "ro.build.fingerprint=...")`
+    line(s) and pull out the pre-build/post-build fingerprints.
+
+    Given:
+        assert file_contains("SYSTEM:build.prop", "ro.build.fingerprint=PRE") == "true" ||
+               file_contains("SYSTEM:build.prop", "ro.build.fingerprint=POST") == "true"
+
+    returns {'pre-build': PRE, 'post-build': POST}. If only a single
+    file_contains(...) assertion is present (no "||" alternative), it is
+    treated as the post-build fingerprint only. Returns an empty dict if
+    no such assertion is found.
+    """
+    try:
+        text = blob.decode('utf-8', errors='replace')
+    except Exception:
+        return {}
+
+    m = _UPDATE_SCRIPT_ASSERT_RE.search(text)
+    if not m:
+        return {}
+
+    first_fp = (m.group(1) or '').strip()
+    second_fp = (m.group(2) or '').strip() if m.group(2) else ''
+
+    fields = {}
+    if second_fp:
+        # Two fingerprints joined by "||": first is pre-build, second is
+        # post-build. Insert post-build first so it's listed above
+        # pre-build wherever fields are displayed in insertion order.
+        fields['post-build'] = second_fp
+        fields['pre-build'] = first_fp
+    elif first_fp:
+        # Only one fingerprint asserted — treat it as the post-build
+        # fingerprint, consistent with metadata.txt's convention that a
+        # missing pre-build simply means "not an incremental/delta OTA".
+        fields['post-build'] = first_fp
+    return fields
+
+
 def _extract_printable_strings(blob: bytes, min_len: int = 4):
     """
     Extract runs of printable ASCII (and a few common separators like '.',
@@ -8070,6 +8143,70 @@ def _fetch_payload_metadata_inner(url: str, status_cb=None, timeout: int = 30,
                 if return_raw_tail:
                     return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
                 return out
+
+    # ── Legacy update-script fallback ─────────────────────────────────
+    # Some old (pre-Edify) OTA packages don't ship a
+    # META-INF/com/android/metadata file at all, but still carry build
+    # fingerprints in the leading `assert file_contains("SYSTEM:build.prop",
+    # "ro.build.fingerprint=...")` line(s) of
+    # META-INF/com/google/android/update-script. If a normal metadata
+    # lookup failed, check for that file next and pull pre-build/post-build
+    # fingerprints out of it before falling through to the HBOOT check.
+    if not out['found'] and tail_data:
+        try:
+            _s("No metadata file — checking update-script…")
+            update_script_entry = _find_zip_update_script_entry(tail_data, tail_offset)
+            if update_script_entry:
+                local_header_offset, compressed_size, compression_method, name = update_script_entry
+
+                lh_start_in_tail = local_header_offset - tail_offset
+                if 0 <= lh_start_in_tail and lh_start_in_tail + 30 <= len(tail_data):
+                    lh_blob = tail_data
+                    lh_pos = lh_start_in_tail
+                else:
+                    _s("Fetching update-script local file header…")
+                    lh_blob = _get_range(f'bytes={local_header_offset}-{local_header_offset + 4096}')
+                    out['bytes_scanned'] += len(lh_blob)
+                    lh_pos = 0
+
+                update_script_plain = b''
+                if lh_blob[lh_pos:lh_pos + 4] == LFH_SIG:
+                    name_len = struct.unpack('<H', lh_blob[lh_pos + 26:lh_pos + 28])[0]
+                    extra_len = struct.unpack('<H', lh_blob[lh_pos + 28:lh_pos + 30])[0]
+                    data_start_in_lh_blob = lh_pos + 30 + name_len + extra_len
+
+                    if data_start_in_lh_blob + compressed_size <= len(lh_blob):
+                        entry_data = lh_blob[data_start_in_lh_blob:data_start_in_lh_blob + compressed_size]
+                    else:
+                        abs_data_start = local_header_offset + 30 + name_len + extra_len
+                        _s(f"Fetching {name} entry ({compressed_size} bytes)…")
+                        entry_data = _get_range(
+                            f'bytes={abs_data_start}-{abs_data_start + compressed_size - 1}')
+                        out['bytes_scanned'] += len(entry_data)
+
+                    if compression_method == 0:
+                        update_script_plain = entry_data
+                    elif compression_method == 8:
+                        try:
+                            update_script_plain = zlib.decompress(entry_data, -15)
+                        except Exception as e:
+                            errors.append(f"Inflate failed (update-script): {e}")
+                    else:
+                        errors.append(f"Unsupported compression method {compression_method} (update-script)")
+
+                if update_script_plain:
+                    fields = _extract_update_script_fingerprints(update_script_plain)
+                    if fields:
+                        out['found'] = True
+                        out['fields'] = fields
+                        out['source'] = f'update-script assert scan ({name})'
+                        if return_raw_tail:
+                            return {'metadata': out, 'tail_data': tail_data, 'tail_offset': tail_offset, 'total_size': total_size}
+                        return out
+                    else:
+                        errors.append("update-script found but no fingerprint assert() line matched")
+        except Exception as e:
+            errors.append(f"update-script check failed: {e}")
 
     # ── HBOOT OTA fallback ────────────────────────────────────────────
     # Some packages (e.g. HTC-style bootloader-only OTAs) don't ship a
