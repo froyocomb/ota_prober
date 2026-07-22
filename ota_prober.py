@@ -46,28 +46,11 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  SERIALS / IMEIs / OTHER — розширювана система нотаток
-# ═══════════════════════════════════════════════════════════════════════════
-#  Цей модуль дозволяє зберігати нотатки у трьох категоріях:
-#    • Serials  — серійні номери пристроїв
-#    • IMEIs    — IMEI-номери
-#    • Other    — будь-яка інша інформація (MAC, ID, ключі тощо)
-#
-#  Нотатки зберігаються у JSON-файлі та підтримують:
-#    – додавання / редагування / видалення
-#    – пошук по всіх нотатках
-#    – копіювання значення в буфер обміну
-#    – автоматичне додавання в поле IMEI / Serial при кліку
-#
-#  Щоб додати свою категорію:
-#    1. Додай нову вкладку у _build_serials_window()
-#    2. Додай відповідний метод _populate_<category>_tab()
-#    3. Додай кнопку додавання у _build_<category>_toolbar()
-#    4. Додай логіку автозаповнення у _on_note_click()
+#  розширювана система нотаток
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _get_serials_storage_path():
-    """Шлях до файлу з нотатками Serials/IMEIs/Other."""
+    """Шлях до файлу з нотатками"""
     try:
         base_dir = _get_storage_dir()
     except Exception:
@@ -983,6 +966,14 @@ class OTAProberGUI:
         # Підписка на зміну вкладки для приховування параметрів
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
 
+        # Для завантаження OTA
+        self._download_ota_window = None
+        self._download_progress_var = None
+        self._download_status_var = None
+        self._download_speed_var = None
+        self._download_thread = None
+        self._download_stop_event = threading.Event()
+
         # ── Serials/IMEIs pagination & sorting state ──
         self._ser_page_size = 500
         self._ser_pages = {"serials": 0, "imeis": 0, "other": 0}
@@ -1142,6 +1133,11 @@ class OTAProberGUI:
             history_frame, text="🔢 Serials/IMEIs",
             command=self.open_serials_imeis_window)
         self.serials_imeis_button.pack(side=tk.RIGHT, padx=(6, 0))
+
+        self.download_ota_button = ttk.Button(
+            history_frame, text="⬇️ Download OTA",
+            command=self.open_download_ota_window)
+        self.download_ota_button.pack(side=tk.RIGHT, padx=(6, 0))
 
         self.cros_board_label = ttk.Label(mode_frame, text="Board preset:", style='Normal.TLabel')
         self.cros_board_label.grid(row=0, column=3, sticky=tk.W, padx=(20, 5))
@@ -6035,6 +6031,304 @@ class OTAProberGUI:
             self._ser_status_var.set(f"Exported to {os.path.basename(path)}")
         except Exception as e:
             messagebox.showerror("Export Error", str(e), parent=self._ser_win)
+    # ═══════════════════════════════════════════════════════════════════
+    #  DOWNLOAD OTA WINDOW — завантаження OTA з токеном авторизації
+    # ═══════════════════════════════════════════════════════════════════
+
+    def open_download_ota_window(self):
+        """Відкриває вікно для завантаження OTA з підтримкою токена."""
+        if self._download_ota_window is not None and self._download_ota_window.winfo_exists():
+            self._download_ota_window.lift()
+            self._download_ota_window.focus_force()
+            return
+
+        win = tk.Toplevel(self.root)
+        win.title("Download OTA")
+        win.geometry("620x420")
+        win.configure(bg=self.APP_BG)
+        win.transient(self.root)
+
+        top = ttk.Frame(win, padding=12)
+        top.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(top, text="⬇️ Download OTA", style='Header.TLabel').pack(anchor=tk.W, pady=(0, 10))
+
+        # ── URL ──
+        url_frame = ttk.Frame(top)
+        url_frame.pack(fill=tk.X, pady=(0, 6))
+        ttk.Label(url_frame, text="OTA URL:", style='Normal.TLabel', width=12).pack(side=tk.LEFT)
+        self._download_url_var = tk.StringVar()
+        ttk.Entry(url_frame, textvariable=self._download_url_var, font=('Courier', 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
+
+        # ── Auth Token ──
+        token_frame = ttk.Frame(top)
+        token_frame.pack(fill=tk.X, pady=(0, 6))
+        ttk.Label(token_frame, text="Auth Token:", style='Normal.TLabel', width=12).pack(side=tk.LEFT)
+        self._download_token_var = tk.StringVar()
+        token_entry = ttk.Entry(token_frame, textvariable=self._download_token_var, font=('Courier', 9), show='•')
+        token_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
+        self._download_show_token_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(token_frame, text="Show", variable=self._download_show_token_var,
+                        command=lambda: token_entry.config(show='' if self._download_show_token_var.get() else '•')).pack(side=tk.LEFT, padx=(6, 0))
+
+        # ── Save path ──
+        path_frame = ttk.Frame(top)
+        path_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(path_frame, text="Save to:", style='Normal.TLabel', width=12).pack(side=tk.LEFT)
+        self._download_path_var = tk.StringVar()
+        ttk.Entry(path_frame, textvariable=self._download_path_var, font=('Courier', 9)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
+        ttk.Button(path_frame, text="📂 Browse…", command=self._download_browse_path).pack(side=tk.LEFT, padx=(6, 0))
+
+        # ── Progress ──
+        prog_lf = ttk.LabelFrame(top, text="Progress", padding=8)
+        prog_lf.pack(fill=tk.X, pady=(0, 10))
+
+        self._download_progress_var = tk.DoubleVar(value=0)
+        self._download_progress = ttk.Progressbar(prog_lf, variable=self._download_progress_var, maximum=100, mode='determinate')
+        self._download_progress.pack(fill=tk.X, pady=(0, 6))
+
+        info_frame = ttk.Frame(prog_lf)
+        info_frame.pack(fill=tk.X)
+        self._download_status_var = tk.StringVar(value="Ready")
+        ttk.Label(info_frame, textvariable=self._download_status_var, foreground='#0066cc', font=('Arial', 9)).pack(side=tk.LEFT)
+        self._download_speed_var = tk.StringVar(value="")
+        ttk.Label(info_frame, textvariable=self._download_speed_var, foreground='#666666', font=('Arial', 9)).pack(side=tk.RIGHT)
+
+        # ── Buttons ──
+        btn_row = ttk.Frame(top)
+        btn_row.pack(fill=tk.X, pady=(8, 0))
+        self._download_start_btn = ttk.Button(btn_row, text="▶  Start Download", command=self._download_ota_start)
+        self._download_start_btn.pack(side=tk.LEFT, padx=(0, 6))
+        self._download_stop_btn = ttk.Button(btn_row, text="⏹  Stop", command=self._download_ota_stop, state=tk.DISABLED)
+        self._download_stop_btn.pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(btn_row, text="Close", command=win.destroy).pack(side=tk.RIGHT)
+
+        # ── Log ──
+        log_frame = ttk.Frame(top)
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=(8, 0))
+        self._download_log = scrolledtext.ScrolledText(log_frame, height=6, wrap=tk.WORD, font=('Courier', 8))
+        self._download_log.pack(fill=tk.BOTH, expand=True)
+        self._download_log.configure(state=tk.DISABLED)
+
+        self._download_ota_window = win
+        self._download_stop_event.clear()
+
+        # Pre-fill URL if we have a current OTA link
+        if self.current_ota_link:
+            self._download_url_var.set(self.current_ota_link)
+            # Auto-suggest filename from URL
+            parsed = urlparse(self.current_ota_link)
+            fname = parsed.path.rsplit('/', 1)[-1] or 'ota_package.zip'
+            self._download_path_var.set(os.path.join(os.path.expanduser('~'), 'Downloads', fname))
+
+    def _download_browse_path(self):
+        """Відкриває діалог вибору файлу для збереження."""
+        url = self._download_url_var.get().strip()
+        default_name = 'ota_package.zip'
+        if url:
+            parsed = urlparse(url)
+            fname = parsed.path.rsplit('/', 1)[-1]
+            if fname:
+                default_name = fname
+        path = filedialog.asksaveasfilename(
+            title="Save OTA as",
+            initialfile=default_name,
+            defaultextension=".zip",
+            filetypes=[("ZIP files", "*.zip"), ("OTA files", "*.bin"), ("All files", "*.*")]
+        )
+        if path:
+            self._download_path_var.set(path)
+
+    def _download_log_append(self, msg):
+        """Додає рядок у лог завантаження (thread-safe через after)."""
+        def _do_append():
+            try:
+                self._download_log.configure(state=tk.NORMAL)
+                self._download_log.insert(tk.END, msg + "\n")
+                self._download_log.see(tk.END)
+                self._download_log.configure(state=tk.DISABLED)
+            except Exception:
+                pass
+        if self._download_ota_window and self._download_ota_window.winfo_exists():
+            self._download_ota_window.after(0, _do_append)
+
+    def _download_ota_start(self):
+        """Запускає завантаження OTA в окремому потоці."""
+        url = self._download_url_var.get().strip()
+        if not url:
+            messagebox.showwarning("Download OTA", "Please enter an OTA URL.", parent=self._download_ota_window)
+            return
+        path = self._download_path_var.get().strip()
+        if not path:
+            messagebox.showwarning("Download OTA", "Please choose where to save the file.", parent=self._download_ota_window)
+            return
+
+        token = self._download_token_var.get().strip()
+
+        self._download_start_btn.config(state=tk.DISABLED)
+        self._download_stop_btn.config(state=tk.NORMAL)
+        self._download_progress_var.set(0)
+        self._download_status_var.set("Starting download…")
+        self._download_speed_var.set("")
+        self._download_stop_event.clear()
+
+        self._download_log_append(f"URL: {url}")
+        self._download_log_append(f"Save to: {path}")
+        if token:
+            self._download_log_append("Authorization token is set.")
+        else:
+            self._download_log_append("No authorization token (public download).")
+        self._download_log_append("—" * 50)
+
+        self._download_thread = threading.Thread(
+            target=self._download_ota_worker,
+            args=(url, path, token),
+            daemon=True
+        )
+        self._download_thread.start()
+
+    def _download_ota_stop(self):
+        """Зупиняє поточне завантаження."""
+        self._download_stop_event.set()
+        self._download_status_var.set("Stopping…")
+        self._download_stop_btn.config(state=tk.DISABLED)
+
+    def _download_ota_worker(self, url: str, save_path: str, token: str):
+        """Поток завантаження OTA з прогрес-баром та підтримкою токена."""
+        CHUNK_SIZE = 256 * 1024  # 256 KB chunks
+
+        def _update_ui(progress_pct, status_msg, speed_msg):
+            def _do():
+                try:
+                    self._download_progress_var.set(progress_pct)
+                    self._download_status_var.set(status_msg)
+                    self._download_speed_var.set(speed_msg)
+                except Exception:
+                    pass
+            if self._download_ota_window and self._download_ota_window.winfo_exists():
+                self._download_ota_window.after(0, _do)
+
+        try:
+            headers = {
+                'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
+                'Accept-Encoding': 'identity',
+            }
+            if token:
+                headers['Authorization'] = token
+
+            req = urllib.request.Request(url, headers=headers, method='GET')
+            ctx = ssl.create_default_context()
+
+            _update_ui(0, "Connecting…", "")
+            self._download_log_append("Connecting to server…")
+
+            t_start = time.time()
+            with urllib.request.urlopen(req, timeout=30, context=ctx) as resp:
+                total_size = int(resp.headers.get('Content-Length', 0) or 0)
+                downloaded = 0
+                last_report_time = t_start
+                last_report_bytes = 0
+
+                size_human = ""
+                if total_size > 0:
+                    if total_size >= 1_073_741_824:
+                        size_human = f"{total_size/1_073_741_824:.2f} GiB"
+                    elif total_size >= 1_048_576:
+                        size_human = f"{total_size/1_048_576:.2f} MiB"
+                    else:
+                        size_human = f"{total_size/1024:.1f} KiB"
+                    self._download_log_append(f"File size: {size_human} ({total_size:,} bytes)")
+                else:
+                    self._download_log_append("File size: unknown (streaming)")
+
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+
+                with open(save_path, 'wb') as f:
+                    while True:
+                        if self._download_stop_event.is_set():
+                            self._download_log_append("Download stopped by user.")
+                            _update_ui(0, "Stopped", "")
+                            # Clean up partial file
+                            try:
+                                f.close()
+                                os.remove(save_path)
+                            except Exception:
+                                pass
+                            self._download_ota_window.after(0, lambda: (
+                                self._download_start_btn.config(state=tk.NORMAL),
+                                self._download_stop_btn.config(state=tk.DISABLED)
+                            ))
+                            return
+
+                        chunk = resp.read(CHUNK_SIZE)
+                        if not chunk:
+                            break
+
+                        f.write(chunk)
+                        downloaded += len(chunk)
+
+                        now = time.time()
+                        elapsed = now - t_start
+                        if elapsed > 0:
+                            avg_speed = downloaded / elapsed
+                        else:
+                            avg_speed = 0
+
+                        # Speed since last report (instantaneous)
+                        interval = now - last_report_time
+                        if interval >= 0.5:  # update every 0.5s
+                            instant_speed = (downloaded - last_report_bytes) / interval
+                            last_report_time = now
+                            last_report_bytes = downloaded
+
+                            if instant_speed >= 1_048_576:
+                                speed_str = f"{instant_speed/1_048_576:.1f} MiB/s"
+                            elif instant_speed >= 1024:
+                                speed_str = f"{instant_speed/1024:.1f} KiB/s"
+                            else:
+                                speed_str = f"{instant_speed:.0f} B/s"
+
+                            if total_size > 0:
+                                pct = min(100.0, (downloaded / total_size) * 100)
+                                _update_ui(pct, f"Downloading… {pct:.1f}%", speed_str)
+                            else:
+                                dl_human = f"{downloaded/1_048_576:.1f} MiB" if downloaded >= 1_048_576 else f"{downloaded/1024:.1f} KiB"
+                                _update_ui(0, f"Downloading… {dl_human}", speed_str)
+
+                # Download complete
+                elapsed_total = time.time() - t_start
+                if elapsed_total > 0:
+                    avg_speed = downloaded / elapsed_total
+                    if avg_speed >= 1_048_576:
+                        avg_str = f"{avg_speed/1_048_576:.1f} MiB/s"
+                    elif avg_speed >= 1024:
+                        avg_str = f"{avg_speed/1024:.1f} KiB/s"
+                    else:
+                        avg_str = f"{avg_speed:.0f} B/s"
+                else:
+                    avg_str = "N/A"
+
+                self._download_log_append("—" * 50)
+                self._download_log_append(f"✅ Download complete: {save_path}")
+                self._download_log_append(f"   Total: {downloaded:,} bytes in {elapsed_total:.1f}s")
+                self._download_log_append(f"   Average speed: {avg_str}")
+                _update_ui(100, "Complete", avg_str)
+
+                self._download_ota_window.after(0, lambda: (
+                    self._download_start_btn.config(state=tk.NORMAL),
+                    self._download_stop_btn.config(state=tk.DISABLED)
+                ))
+
+        except Exception as e:
+            self._download_log_append(f"❌ Error: {e}")
+            _update_ui(0, f"Error: {e}", "")
+            self._download_ota_window.after(0, lambda: (
+                self._download_start_btn.config(state=tk.NORMAL),
+                self._download_stop_btn.config(state=tk.DISABLED)
+            ))
+
+
 
 def parse_fingerprint(fingerprint):
     parts = fingerprint.split('/')
