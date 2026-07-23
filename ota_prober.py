@@ -5821,17 +5821,7 @@ class OTAProberGUI:
         tags_var = tk.StringVar()
         ttk.Entry(dlg, textvariable=tags_var, width=50).pack(fill=tk.X, padx=12)
 
-        # Підказка з наявних тегів
-        all_tags = _get_all_serial_tags(_load_serials_data())
-        if all_tags:
-            hint = "Existing tags: " + ", ".join(all_tags[:15])
-            if len(all_tags) > 15:
-                hint += f" (+{len(all_tags)-15} more)"
-            ttk.Label(dlg, text=hint, font=('Arial', 8), foreground='#888888').pack(anchor=tk.W, padx=12, pady=(4, 0))
 
-        # Статус batch-режиму
-        self._add_batch_status = ttk.Label(dlg, text="", foreground='#0066cc', font=('Arial', 9))
-        self._add_batch_status.pack(anchor=tk.W, padx=12, pady=(4, 0))
 
         btn_row = ttk.Frame(dlg)
         btn_row.pack(fill=tk.X, padx=12, pady=16, side=tk.BOTTOM)
@@ -6130,6 +6120,8 @@ class OTAProberGUI:
         self._download_start_btn.pack(side=tk.LEFT, padx=(0, 6))
         self._download_stop_btn = ttk.Button(btn_row, text="⏹  Stop", command=self._download_ota_stop, state=tk.DISABLED)
         self._download_stop_btn.pack(side=tk.LEFT, padx=(0, 6))
+        self._download_save256_btn = ttk.Button(btn_row, text="💾  Save 256 KB", command=self._download_ota_save_256kb)
+        self._download_save256_btn.pack(side=tk.LEFT, padx=(0, 6))
         ttk.Button(btn_row, text="Close", command=win.destroy).pack(side=tk.RIGHT)
 
         # ── Log ──
@@ -6224,6 +6216,155 @@ class OTAProberGUI:
         self._download_stop_event.set()
         self._download_status_var.set("Stopping…")
         self._download_stop_btn.config(state=tk.DISABLED)
+
+    def _download_ota_save_256kb(self):
+        """Зберігає лише перші 256 KB файлу через Range-запит."""
+        url = self._download_url_var.get().strip()
+        if not url:
+            messagebox.showwarning("Download OTA", "Please enter an OTA URL.", parent=self._download_ota_window)
+            return
+        path = self._download_path_var.get().strip()
+        if not path:
+            messagebox.showwarning("Download OTA", "Please choose where to save the file.", parent=self._download_ota_window)
+            return
+
+        # Позначаємо файл суфіксом, щоб не плутати з повним завантаженням
+        base, ext = os.path.splitext(path)
+        partial_path = f"{base}.first256kb{ext or '.bin'}"
+
+        token = self._download_token_var.get().strip()
+
+        self._download_start_btn.config(state=tk.DISABLED)
+        self._download_save256_btn.config(state=tk.DISABLED)
+        self._download_stop_btn.config(state=tk.NORMAL)
+        self._download_progress_var.set(0)
+        self._download_status_var.set("Starting partial download…")
+        self._download_speed_var.set("")
+        self._download_stop_event.clear()
+
+        self._download_log_append(f"URL: {url}")
+        self._download_log_append(f"Save first 256 KB to: {partial_path}")
+        if token:
+            self._download_log_append("Authorization token is set.")
+        self._download_log_append("—" * 50)
+
+        self._download_thread = threading.Thread(
+            target=self._download_ota_worker_256kb,
+            args=(url, partial_path, token),
+            daemon=True
+        )
+        self._download_thread.start()
+
+    def _download_ota_worker_256kb(self, url: str, save_path: str, token: str):
+        """Завантажує лише перші 256 KB файлу через HTTP Range-запит."""
+        RANGE_BYTES = 256 * 1024  # 256 KB
+
+        def _update_ui(progress_pct, status_msg, speed_msg):
+            def _do():
+                try:
+                    self._download_progress_var.set(progress_pct)
+                    self._download_status_var.set(status_msg)
+                    self._download_speed_var.set(speed_msg)
+                except Exception:
+                    pass
+            if self._download_ota_window and self._download_ota_window.winfo_exists():
+                self._download_ota_window.after(0, _do)
+
+        def _reset_buttons():
+            self._download_ota_window.after(0, lambda: (
+                self._download_start_btn.config(state=tk.NORMAL),
+                self._download_save256_btn.config(state=tk.NORMAL),
+                self._download_stop_btn.config(state=tk.DISABLED)
+            ))
+
+        try:
+            headers = {
+                'User-Agent': 'AndroidDownloadManager/14 (Linux; U; Android 14; sdk_gphone64_x86_64 Build/UE1A.230829.036)',
+                'Accept-Encoding': 'identity',
+                'Range': f'bytes=0-{RANGE_BYTES - 1}',
+            }
+            if token:
+                headers['Authorization'] = token
+
+            req = urllib.request.Request(url, headers=headers, method='GET')
+            ctx = ssl.create_default_context()
+
+            _update_ui(0, "Connecting…", "")
+            self._download_log_append("Connecting to server (Range request)…")
+
+            t_start = time.time()
+            with urllib.request.urlopen(req, timeout=30, context=ctx) as resp:
+                status = getattr(resp, 'status', 200)
+                content_range = resp.headers.get('Content-Range', '')
+                accept_ranges = resp.headers.get('Accept-Ranges', '')
+
+                if status == 206:
+                    self._download_log_append(f"Server honored Range request (HTTP 206). Content-Range: {content_range or 'n/a'}")
+                elif status == 200:
+                    self._download_log_append("⚠️ Server returned HTTP 200 (Range not supported) — "
+                                               "response may contain the full file; only 256 KB will be read/saved.")
+                else:
+                    self._download_log_append(f"Server responded HTTP {status}.")
+
+                os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+
+                downloaded = 0
+                CHUNK_SIZE = 32 * 1024
+                last_report_time = t_start
+                last_report_bytes = 0
+
+                with open(save_path, 'wb') as f:
+                    while downloaded < RANGE_BYTES:
+                        if self._download_stop_event.is_set():
+                            self._download_log_append("Partial download stopped by user.")
+                            _update_ui(0, "Stopped", "")
+                            try:
+                                f.close()
+                                os.remove(save_path)
+                            except Exception:
+                                pass
+                            _reset_buttons()
+                            return
+
+                        to_read = min(CHUNK_SIZE, RANGE_BYTES - downloaded)
+                        chunk = resp.read(to_read)
+                        if not chunk:
+                            break
+
+                        f.write(chunk)
+                        downloaded += len(chunk)
+
+                        now = time.time()
+                        elapsed = now - t_start
+                        interval = now - last_report_time
+                        if interval >= 0.25:
+                            instant_speed = (downloaded - last_report_bytes) / interval if interval > 0 else 0
+                            last_report_time = now
+                            last_report_bytes = downloaded
+                            if instant_speed >= 1_048_576:
+                                speed_str = f"{instant_speed/1_048_576:.1f} MiB/s"
+                            elif instant_speed >= 1024:
+                                speed_str = f"{instant_speed/1024:.1f} KiB/s"
+                            else:
+                                speed_str = f"{instant_speed:.0f} B/s"
+                            pct = min(100.0, (downloaded / RANGE_BYTES) * 100)
+                            _update_ui(pct, f"Saving first 256 KB… {pct:.1f}%", speed_str)
+
+                elapsed_total = time.time() - t_start
+                self._download_log_append("—" * 50)
+                self._download_log_append(f"✅ Saved first {downloaded:,} bytes to: {save_path}")
+                self._download_log_append(f"   Elapsed: {elapsed_total:.1f}s")
+                _update_ui(100, "Complete (256 KB)", "")
+                _reset_buttons()
+
+        except urllib.error.HTTPError as e:
+            self._download_log_append(f"❌ HTTP error: {e.code} {e.reason}")
+            _update_ui(0, f"Error: HTTP {e.code}", "")
+            _reset_buttons()
+        except Exception as e:
+            self._download_log_append(f"❌ Error: {e}")
+            _update_ui(0, f"Error: {e}", "")
+            _reset_buttons()
 
     def _download_ota_worker(self, url: str, save_path: str, token: str):
         """Поток завантаження OTA з прогрес-баром та підтримкою токена."""
