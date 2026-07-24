@@ -1138,6 +1138,11 @@ class OTAProberGUI:
             command=self.open_additional_features_window)
         self.additional_features_button.pack(side=tk.RIGHT, padx=(6, 0))
 
+        self.scan_fingerprints_button = ttk.Button(
+            history_frame, text="🧬 Scan Fingerprints",
+            command=self.open_scan_fingerprints_window)
+        self.scan_fingerprints_button.pack(side=tk.RIGHT, padx=(6, 0))
+
         self.serials_imeis_button = ttk.Button(
             history_frame, text="🔢 Serials/IMEIs",
             command=self.open_serials_imeis_window)
@@ -4176,6 +4181,411 @@ class OTAProberGUI:
                 self._scan_urls_pending_log.append(msg)
         except Exception:
             pass
+
+    # ── Scan Fingerprints (global2.txt) ──────────────────────────────
+    KEY_TYPES_ALL = [
+        "user/release-keys",
+        "userdebug/release-keys",
+        "eng/release-keys",
+        "user/dev-keys",
+        "user/test-keys",
+        "userdebug/dev-keys",
+        "userdebug/test-keys",
+        "eng/dev-keys",
+        "eng/test-keys",
+    ]
+
+    def open_scan_fingerprints_window(self):
+        win = tk.Toplevel(self.root)
+        win.title("Scan Fingerprints")
+        win.geometry("680x620")
+        win.configure(bg=self.APP_BG)
+
+        top = ttk.Frame(win, padding=12)
+        top.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(top, text="🧬 Scan Fingerprints", style='Header.TLabel').pack(anchor=tk.W, pady=(0, 10))
+
+        desc = ttk.Label(
+            top,
+            text=("Import a .txt file with fingerprints (one per line). Each one is "
+                  "checked-in against Google's servers, optionally across multiple "
+                  "locales and/or all key/build types, and optionally with an IMEI "
+                  "or Serial attached. Results are written to global2.txt."),
+            style='Normal.TLabel', wraplength=640, justify=tk.LEFT)
+        desc.pack(anchor=tk.W, pady=(0, 10))
+
+        # ── IMEI / Serial ─────────────────────────────────────────────
+        id_lf = ttk.LabelFrame(top, text="Device Identifier", padding=8)
+        id_lf.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(id_lf, text="IMEI:", style='Normal.TLabel').grid(row=0, column=0, sticky=tk.W)
+        self.sf_imei_var = tk.StringVar()
+        self.sf_imei_combo = ttk.Combobox(id_lf, textvariable=self.sf_imei_var, width=30)
+        self.sf_imei_combo.grid(row=0, column=1, sticky=(tk.W, tk.E), padx=(6, 0))
+
+        ttk.Label(id_lf, text="S/N:", style='Normal.TLabel').grid(row=1, column=0, sticky=tk.W, pady=(8, 0))
+        self.sf_serial_var = tk.StringVar()
+        self.sf_serial_combo = ttk.Combobox(id_lf, textvariable=self.sf_serial_var, width=30)
+        self.sf_serial_combo.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=(6, 0), pady=(8, 0))
+
+        id_lf.columnconfigure(1, weight=1)
+
+        # ── Locales ──────────────────────────────────────────────────
+        loc_lf = ttk.LabelFrame(top, text="Locales", padding=8)
+        loc_lf.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(loc_lf, text="Locales (comma/space separated, blank = current app locale):",
+                  style='Normal.TLabel').pack(anchor=tk.W)
+        self.sf_locales_var = tk.StringVar(value="")
+        ttk.Entry(loc_lf, textvariable=self.sf_locales_var, width=60).pack(fill=tk.X, pady=(4, 0))
+
+        # ── Build types ──────────────────────────────────────────────
+        bt_lf = ttk.LabelFrame(top, text="Build Types", padding=8)
+        bt_lf.pack(fill=tk.X, pady=(0, 10))
+        self.sf_all_keytypes_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(bt_lf, text="Go through all key/build types for each fingerprint "
+                                     "(user/eng/userdebug × release/dev/test-keys)",
+                        variable=self.sf_all_keytypes_var).pack(anchor=tk.W)
+
+        # ── Options row ──────────────────────────────────────────────
+        options_row = ttk.Frame(top)
+        options_row.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(options_row, text="Parallel workers:", style='Normal.TLabel').pack(side=tk.LEFT)
+        self.sf_workers_var = tk.IntVar(value=1)
+        ttk.Spinbox(options_row, from_=1, to=32, width=5, textvariable=self.sf_workers_var).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(options_row, text="🔍 Scan Fingerprints", command=self.on_scan_fingerprints_click).pack(side=tk.LEFT, padx=(20, 0))
+
+        ttk.Separator(top, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
+
+        self.sf_status_var = tk.StringVar(value="Ready.")
+        ttk.Label(top, textvariable=self.sf_status_var, style='Normal.TLabel',
+                  wraplength=640, justify=tk.LEFT).pack(anchor=tk.W, pady=(0, 8))
+
+        log_frame = ttk.Frame(top)
+        log_frame.pack(fill=tk.BOTH, expand=True)
+        self.sf_log = scrolledtext.ScrolledText(log_frame, height=14, wrap=tk.WORD)
+        self.sf_log.pack(fill=tk.BOTH, expand=True)
+        self.sf_log.configure(state=tk.DISABLED)
+
+        btn_row = ttk.Frame(top)
+        btn_row.pack(fill=tk.X, pady=(8, 0))
+        ttk.Button(btn_row, text="📂 Open global2.txt", command=self._open_global2_txt).pack(side=tk.LEFT)
+        ttk.Button(btn_row, text="Close", command=win.destroy).pack(side=tk.RIGHT)
+
+        self._scan_fingerprints_win = win
+        self._sf_reload_id_values()
+
+    def _sf_reload_id_values(self):
+        """Populate the IMEI and S/N comboboxes with saved Serials/IMEIs notes."""
+        try:
+            data = _load_serials_data()
+        except Exception:
+            data = {"serials": [], "imeis": []}
+
+        imei_values = [entry.get("value", "") for entry in data.get("imeis", []) if entry.get("value")]
+        serial_values = [entry.get("value", "") for entry in data.get("serials", []) if entry.get("value")]
+
+        self.sf_imei_combo['values'] = imei_values
+        self.sf_serial_combo['values'] = serial_values
+
+    def _global2_txt_path(self):
+        try:
+            base_dir = _get_storage_dir()
+        except Exception:
+            base_dir = os.getcwd()
+        return os.path.join(base_dir, "global2.txt")
+
+    def _open_global2_txt(self):
+        path = self._global2_txt_path()
+        try:
+            if not os.path.isfile(path):
+                open(path, "a", encoding="utf-8").close()
+            if sys.platform.startswith("win"):
+                os.startfile(path)
+            elif sys.platform == "darwin":
+                os.system(f'open "{path}"')
+            else:
+                os.system(f'xdg-open "{path}"')
+        except Exception as exc:
+            messagebox.showerror("global2.txt", f"Failed to open file:\n{exc}")
+
+    def _sf_log_append(self, msg):
+        try:
+            self.sf_log.configure(state=tk.NORMAL)
+            self.sf_log.insert(tk.END, msg + "\n")
+            self.sf_log.see(tk.END)
+            self.sf_log.configure(state=tk.DISABLED)
+        except Exception:
+            pass
+
+    def on_scan_fingerprints_click(self):
+        txt_path = filedialog.askopenfilename(
+            title="Select a .txt file containing fingerprints",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+        )
+        if not txt_path:
+            return
+
+        try:
+            with open(txt_path, "r", encoding="utf-8", errors="replace") as f:
+                raw_lines = f.readlines()
+        except Exception as exc:
+            messagebox.showerror("Scan Fingerprints", f"Failed to read file:\n{exc}")
+            return
+
+        fingerprints = []
+        for line in raw_lines:
+            fp = line.strip()
+            if not fp or fp.startswith('#'):
+                continue
+            if ':' not in fp:
+                continue
+            fingerprints.append(fp)
+
+        if not fingerprints:
+            messagebox.showinfo("Scan Fingerprints", "No valid fingerprints were found in the file "
+                                                       "(each line must contain at least one ':').")
+            return
+
+        # Resolve locales
+        locales_str = self.sf_locales_var.get().strip()
+        if locales_str:
+            locales = [loc.strip() for loc in re.split(r'[,\s\n]+', locales_str) if loc.strip()]
+        else:
+            locales = [self.locale_var.get().strip() or "en-US"]
+
+        # Resolve identifiers (both can be set independently)
+        device_sn = self.sf_serial_var.get().strip()
+        imei = self.sf_imei_var.get().strip()
+
+        all_keytypes = bool(self.sf_all_keytypes_var.get())
+        key_types = list(self.KEY_TYPES_ALL) if all_keytypes else [None]  # None = keep fingerprint's own key type
+
+        try:
+            worker_count = max(1, min(32, int(self.sf_workers_var.get())))
+        except Exception:
+            worker_count = 1
+
+        self.sf_log.configure(state=tk.NORMAL)
+        self.sf_log.delete('1.0', tk.END)
+        self.sf_log.configure(state=tk.DISABLED)
+
+        total_jobs = len(fingerprints) * len(locales) * len(key_types)
+        self.sf_status_var.set(
+            f"Found {len(fingerprints)} fingerprint(s) × {len(locales)} locale(s)"
+            f"{' × ' + str(len(key_types)) + ' key type(s)' if all_keytypes else ''}"
+            f" = {total_jobs} job(s). Starting with {worker_count} worker(s)…"
+        )
+
+        threading.Thread(
+            target=self._scan_fingerprints_dispatch,
+            args=(fingerprints, locales, key_types, device_sn, imei, worker_count),
+            daemon=True
+        ).start()
+
+    def _scan_fingerprints_dispatch(self, fingerprints, locales, key_types, device_sn, imei, worker_count):
+        """
+        Same pattern as _scan_urls_dispatch: a shared job queue drained by
+        `worker_count` threads, all writing to global2.txt behind a lock,
+        with UI updates buffered and flushed periodically from the main
+        thread to keep Tk responsive regardless of worker count.
+        """
+        jobs = []
+        idx = 0
+        for fp in fingerprints:
+            if ':' not in fp:
+                continue
+            prefix, own_key = fp.rsplit(':', 1)
+            for loc in locales:
+                for kt in key_types:
+                    idx += 1
+                    test_fp = f"{prefix}:{kt}" if kt else fp
+                    key_label = kt or own_key
+                    jobs.append((idx, fp, test_fp, loc, key_label))
+        total = len(jobs)
+
+        work_queue = queue.Queue()
+        for job in jobs:
+            work_queue.put(job)
+
+        global2_txt_path = self._global2_txt_path()
+        file_lock = threading.Lock()
+        counters = {'ok': 0, 'fail': 0, 'done': 0, 'dupe': 0}
+        counters_lock = threading.Lock()
+
+        # Pre-load already-recorded OTA URLs so re-running a scan doesn't
+        # write duplicate entries for links already saved in global2.txt.
+        seen_urls = set()
+        try:
+            if os.path.isfile(global2_txt_path):
+                with open(global2_txt_path, "r", encoding="utf-8", errors="replace") as ef:
+                    for line in ef:
+                        line = line.strip()
+                        if line.startswith("ota_url:"):
+                            u = line.split(":", 1)[1].strip()
+                            if u:
+                                seen_urls.add(u)
+        except Exception:
+            pass
+        seen_urls_lock = threading.Lock()
+
+        self._sf_pending_log = []
+        self._sf_pending_log_lock = threading.Lock()
+        self._sf_latest_status = [None]
+        self._sf_active = True
+
+        def buffer_log(msg):
+            with self._sf_pending_log_lock:
+                self._sf_pending_log.append(msg)
+
+        def buffer_status(msg):
+            self._sf_latest_status[0] = msg
+
+        try:
+            out_f = open(global2_txt_path, "a", encoding="utf-8")
+        except Exception as exc:
+            buffer_log(f"[Error] Failed to open {global2_txt_path}: {exc}")
+            self._sf_active = False
+            self.root.after(0, self.sf_status_var.set, f"Failed to open global2.txt: {exc}")
+            return
+
+        def worker():
+            while True:
+                try:
+                    idx, orig_fp, test_fp, loc, key_label = work_queue.get_nowait()
+                except queue.Empty:
+                    return
+
+                tz = LOCALE_TZ_MAP.get(loc, 'America/New_York')
+                buffer_log(f"[{idx}/{total}] {test_fp}  (locale {loc})")
+                buffer_status(f"[{idx}/{total}] Checking {test_fp} @ {loc}…")
+
+                ota_url = ""
+                ota_title = ""
+                ota_size = ""
+                error_msg = ""
+
+                try:
+                    settings, raw_bytes = perform_checkin(
+                        test_fp, locale=loc, timezone=tz, device_sn=device_sn, imei=imei
+                    )
+                    if not settings:
+                        error_msg = "No response from server"
+                    else:
+                        ota = find_ota_link(settings)
+                        if ota and ota.get('url'):
+                            ota_url = ota['url']
+                            ota_title = ota.get('title', '') or ''
+                            ota_size = ota.get('size', '') or ''
+                        else:
+                            error_msg = "No OTA found"
+                except Exception as exc:
+                    error_msg = str(exc)
+
+                is_dupe = False
+                if ota_url:
+                    with seen_urls_lock:
+                        if ota_url in seen_urls:
+                            is_dupe = True
+                        else:
+                            seen_urls.add(ota_url)
+
+                if ota_url and not is_dupe:
+                    entry_lines = [
+                        f"fingerprint: {test_fp}\n",
+                        f"source_fingerprint: {orig_fp}\n",
+                        f"key_type: {key_label}\n",
+                        f"locale: {loc}\n",
+                    ]
+                    if device_sn:
+                        entry_lines.append(f"serial: {device_sn}\n")
+                    if imei:
+                        entry_lines.append(f"imei: {imei}\n")
+                    entry_lines.append(f"ota_url: {ota_url}\n")
+                    if ota_title:
+                        entry_lines.append(f"ota_title: {ota_title}\n")
+                    if ota_size:
+                        entry_lines.append(f"ota_size: {ota_size}\n")
+                    entry_lines.append("\n")
+
+                    with file_lock:
+                        try:
+                            out_f.write("".join(entry_lines))
+                            out_f.flush()
+                        except Exception:
+                            pass
+
+                with counters_lock:
+                    if ota_url and not is_dupe:
+                        counters['ok'] += 1
+                    elif ota_url and is_dupe:
+                        counters['dupe'] += 1
+                    else:
+                        counters['fail'] += 1
+                    counters['done'] += 1
+                    done_snapshot = counters['done']
+
+                if ota_url and not is_dupe:
+                    buffer_log(f"    ✔ [{idx}/{total}] OTA: {ota_url}")
+                elif ota_url and is_dupe:
+                    buffer_log(f"    ↷ [{idx}/{total}] Duplicate OTA, skipped: {ota_url}")
+                else:
+                    buffer_log(f"    ✘ [{idx}/{total}] No OTA — not written" + (f" ({error_msg})" if error_msg else ""))
+
+                buffer_status(f"Progress: {done_snapshot}/{total} job(s) processed…")
+                work_queue.task_done()
+
+        self.root.after(100, self._sf_flush_ui)
+
+        threads = []
+        for _ in range(max(1, min(worker_count, total or 1))):
+            t = threading.Thread(target=worker, daemon=True)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+
+        try:
+            out_f.close()
+        except Exception:
+            pass
+
+        summary = (f"Done: {counters['ok']} new OTA(s) written, {counters['dupe']} duplicate(s) skipped, "
+                   f"{counters['fail']} with no result (not written). "
+                   f"Written to global2.txt ({global2_txt_path})")
+        buffer_log(summary)
+        buffer_status(summary)
+        self._sf_active = False
+
+    def _sf_flush_ui(self):
+        pending = None
+        try:
+            with self._sf_pending_log_lock:
+                if self._sf_pending_log:
+                    pending = self._sf_pending_log
+                    self._sf_pending_log = []
+        except Exception:
+            pending = None
+
+        if pending:
+            try:
+                self.sf_log.configure(state=tk.NORMAL)
+                self.sf_log.insert(tk.END, "\n".join(pending) + "\n")
+                self.sf_log.see(tk.END)
+                self.sf_log.configure(state=tk.DISABLED)
+            except Exception:
+                pass
+
+        latest_status = self._sf_latest_status[0]
+        if latest_status is not None:
+            try:
+                self.sf_status_var.set(latest_status)
+            except Exception:
+                pass
+            self._sf_latest_status[0] = None
+
+        if getattr(self, '_sf_active', False):
+            self.root.after(100, self._sf_flush_ui)
 
     def open_history_window(self):
         win = tk.Toplevel(self.root)
